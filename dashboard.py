@@ -773,6 +773,8 @@ def sanitize_for_json(obj):
         if math.isnan(obj) or math.isinf(obj):
             return None
         return obj
+    elif hasattr(obj, "item"):
+        return sanitize_for_json(obj.item())
     return obj
 
 class DashboardHandler(http.server.BaseHTTPRequestHandler):
