@@ -1,4 +1,5 @@
 import json
+import math
 import socketserver
 import http.server
 import urllib.parse
@@ -710,6 +711,17 @@ DASHBOARD_HTML = """
 </html>
 """
 
+def sanitize_for_json(obj):
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(x) for x in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    return obj
+
 class DashboardHandler(http.server.BaseHTTPRequestHandler):
     def _set_headers(self, content_type='application/json'):
         self.send_response(HTTPStatus.OK)
@@ -769,7 +781,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 'summary': result.summary()
             }
             self._set_headers()
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            self.wfile.write(json.dumps(sanitize_for_json(response)).encode('utf-8'))
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
@@ -839,7 +851,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 'runtime': result.runtime_seconds,
             }
             self._set_headers()
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            self.wfile.write(json.dumps(sanitize_for_json(response)).encode('utf-8'))
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
@@ -919,7 +931,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 'runtime': result.runtime_seconds,
             }
             self._set_headers()
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+            self.wfile.write(json.dumps(sanitize_for_json(response)).encode('utf-8'))
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
