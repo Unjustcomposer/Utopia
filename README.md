@@ -4,6 +4,8 @@
 A multi-agent economic simulation with scenario injection, A/B-style
 control/treatment experiments, and parameter-search optimization.
 
+*Built by an autonomous AI Agent Swarm. See our [Open Source Movement & Team](TEAM.md).*
+
 > **⚠️ Every result produced by this simulator is a statement about the
 > simulation's internal dynamics — never a prediction about a real company,
 > market, or geopolitical event. This is a decision-support and portfolio-

@@ -4,6 +4,8 @@ US Macroeconomic Calibration Module
 Provides sampling functions to initialize the agent-based simulation with 
 realistic United States demographics (Age, Region) and correlated wealth/wage 
 distributions to model the actual US economy.
+
+Vectorized for AgentPopulation architecture.
 """
 
 import numpy as np
@@ -34,44 +36,55 @@ AGE_WEALTH_MULT = {
     "65+": 1.5
 }
 
-def sample_demographics(rng: np.random.Generator, n: int) -> list[Tuple[str, str]]:
-    """Sample n demographic pairs (region, age_group)."""
+def sample_demographics(rng: np.random.Generator, n: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Sample n demographic pairs (region, age_group) using vectorization."""
     regions = rng.choice(REGIONS, size=n, p=REGION_WEIGHTS)
     ages = rng.choice(AGE_GROUPS, size=n, p=AGE_WEIGHTS)
-    return list(zip(regions, ages))
+    return regions, ages
 
 def sample_agent_financials(
     rng: np.random.Generator, 
-    region: str, 
-    age_group: str,
+    regions: np.ndarray, 
+    ages: np.ndarray,
     base_budget: float,
-    base_wage: float
-) -> Tuple[float, float, float]:
+    base_wage: float,
+    **kwargs,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Sample budget, expected wage, and savings rate based on US data.
-    Uses lognormal distributions for wealth inequality (Gini ~0.48).
+    Fully vectorized over the agent population arrays.
     
-    Returns:
-        (budget, expected_wage, savings_rate)
+    Optional overriding kwargs for evolutionary calibration:
+        - sigma_wealth (float): Variance in lognormal wealth distribution. Default 0.8.
+        - sigma_wage (float): Variance in lognormal expected wage. Default 0.5.
+        - savings_mean (float): Mean of normal savings distribution. Default 0.05.
+        - savings_std (float): Std dev of normal savings distribution. Default 0.03.
     """
-    col_mult = REGION_COL[region]
-    age_mult = AGE_WEALTH_MULT[age_group]
+    n = len(regions)
     
+    col_mult = np.zeros(n)
+    for r, mult in REGION_COL.items():
+        col_mult[regions == r] = mult
+        
+    age_mult = np.zeros(n)
+    for a, mult in AGE_WEALTH_MULT.items():
+        age_mult[ages == a] = mult
+        
     # Lognormal parameters for wealth (budget)
-    # Mean of lognormal = exp(mu + sigma^2 / 2)
-    # A sigma of ~0.8 gives a Gini of ~0.45
-    sigma_wealth = 0.8
+    sigma_wealth = kwargs.get("sigma_wealth", 0.8)
     target_mean_wealth = base_budget * col_mult * age_mult
     mu_wealth = np.log(target_mean_wealth) - (sigma_wealth**2 / 2)
-    budget = float(rng.lognormal(mu_wealth, sigma_wealth))
+    budgets = rng.lognormal(mu_wealth, sigma_wealth)
     
-    # Lognormal parameters for expected wage (less skewed than wealth)
-    sigma_wage = 0.5
+    # Lognormal parameters for expected wage
+    sigma_wage = kwargs.get("sigma_wage", 0.5)
     target_mean_wage = base_wage * col_mult
     mu_wage = np.log(target_mean_wage) - (sigma_wage**2 / 2)
-    expected_wage = float(rng.lognormal(mu_wage, sigma_wage))
+    expected_wages = rng.lognormal(mu_wage, sigma_wage)
     
-    # Savings rate (US average ~5%, normally distributed but bounded)
-    savings_rate = float(np.clip(rng.normal(loc=0.05, scale=0.03), 0.0, 0.4))
+    # Savings rate
+    savings_mean = kwargs.get("savings_mean", 0.05)
+    savings_std = kwargs.get("savings_std", 0.03)
+    savings_rates = np.clip(rng.normal(loc=savings_mean, scale=savings_std, size=n), 0.0, 0.4)
     
-    return budget, expected_wage, savings_rate
+    return budgets, expected_wages, savings_rates

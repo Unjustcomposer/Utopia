@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8765:8765"
+    volumes:
+      - .:/app
+    environment:
+      - JWT_SECRET=supersecretkey
+      - DATABASE_URL=sqlite:///./nexusai.db
