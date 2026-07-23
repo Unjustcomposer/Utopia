@@ -927,11 +927,26 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             )
 
             scenario_type = data.get('scenario_type', 'feature_change')
-            param_space = data.get('param_space', {'price': [8, 10, 12, 14, 16, 18, 20]})
+            
+            # Use appropriate default param space depending on the scenario
+            default_param_space = {}
+            if scenario_type == 'marketing':
+                default_param_space = {'spend': [1000, 5000, 10000], 'reach': [0.2, 0.5, 0.8]}
+            elif scenario_type == 'demand_shock':
+                default_param_space = {'risk_aversion_delta': [0.05, 0.1, 0.2]}
+            elif scenario_type == 'supply_disruption':
+                default_param_space = {'capacity_reduction': [0.2, 0.5, 0.8]}
+            elif scenario_type == 'trade_disruption':
+                default_param_space = {'cost_increase': [1.2, 1.5, 2.0]}
+            else:
+                default_param_space = {'price': [8, 10, 12, 14, 16, 18, 20]}
+
+            param_space = data.get('param_space', default_param_space)
 
             def scenario_factory(params):
-                sp = data.get('scenario_params', {})
+                sp = data.get('scenario_params', {}).copy()
                 sp.update(params)
+                
                 if 'target_region' in data:
                     sp['target_region'] = data['target_region']
                 if 'target_age_group' in data:
@@ -940,10 +955,13 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     sp['start_tick'] = 15
                 if 'duration' not in sp:
                     sp['duration'] = 50
-                if scenario_type == 'feature_change' and 'target_good' not in sp:
-                    sp['target_good'] = 0
-                if 'new_price' not in sp and 'price' in params:
-                    sp['new_price'] = params['price']
+                    
+                if scenario_type == 'feature_change':
+                    if 'target_good' not in sp:
+                        sp['target_good'] = 0
+                    if 'price' in sp:
+                        sp['new_price'] = sp.pop('price')
+                
                 return create_scenario(scenario_type, **sp)
             
             obj_name = data.get('objective', 'profit')
