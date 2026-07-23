@@ -20,6 +20,9 @@ class SimulationConfig:
     and timing. Override any field via keyword arguments or by subclassing.
     """
 
+    # ── Simulation Modes ────────────────────────────────────────────────
+    use_us_calibration: bool = False
+
     # ── Population ──────────────────────────────────────────────────────
     num_agents: int = 200
     base_wage_min: float = 30.0

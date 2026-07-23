@@ -115,22 +115,45 @@ class Simulation:
 
     def _init_firms(self) -> None:
         """Create firms, distributing goods across them."""
+        # Optional: distribute firms roughly evenly across US regions if US calibration is enabled
+        from us_calibration import REGIONS
+        
         for i in range(self.config.num_firms):
             good = i % self.config.num_goods
-            firm = Firm(firm_id=i, good_produced=good, config=self.config, rng=self.rng)
+            region = REGIONS[i % len(REGIONS)] if self.config.use_us_calibration else "Midwest"
+            firm = Firm(firm_id=i, good_produced=good, config=self.config, rng=self.rng, region=region)
             self.firms.append(firm)
 
     def _init_agents(self) -> None:
         """Create agents and assign initial employment."""
+        from us_calibration import sample_demographics, sample_agent_financials
+        
+        demographics = []
+        if self.config.use_us_calibration:
+            demographics = sample_demographics(self.rng, self.config.num_agents)
+
         for i in range(self.config.num_agents):
-            agent = Agent(agent_id=i, config=self.config, rng=self.rng)
+            if self.config.use_us_calibration:
+                region, age = demographics[i]
+                agent = Agent(agent_id=i, config=self.config, rng=self.rng, age=age, region=region)
+                budget, wage, savings_rate = sample_agent_financials(
+                    self.rng, region, age, 
+                    (self.config.initial_budget_min + self.config.initial_budget_max) / 2,
+                    (self.config.base_wage_min + self.config.base_wage_max) / 2
+                )
+                agent.budget = budget
+                agent.savings_rate = savings_rate
+            else:
+                agent = Agent(agent_id=i, config=self.config, rng=self.rng)
+                
             self.agents.append(agent)
             self._agent_dict[i] = agent
 
-        # Assign ~60% of agents to jobs initially
+        # Assign ~60% (US calibrated: 95%) of agents to jobs initially
         shuffled = list(range(self.config.num_agents))
         self.rng.shuffle(shuffled)
-        target_employed = int(self.config.num_agents * 0.6)
+        emp_rate = 0.95 if self.config.use_us_calibration else 0.60
+        target_employed = int(self.config.num_agents * emp_rate)
         for idx in range(target_employed):
             agent = self._agent_dict[shuffled[idx]]
             firm = self.firms[idx % len(self.firms)]

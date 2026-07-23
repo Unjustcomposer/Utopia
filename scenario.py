@@ -41,9 +41,17 @@ class Scenario(ABC):
     during the active window [start_tick, start_tick + duration).
     """
 
-    def __init__(self, start_tick: int, duration: Optional[int] = None) -> None:
+    def __init__(
+        self, 
+        start_tick: int, 
+        duration: Optional[int] = None,
+        target_region: str = "All",
+        target_age_group: str = "All"
+    ) -> None:
         self.start_tick = start_tick
         self.duration = duration  # None = permanent once started
+        self.target_region = target_region
+        self.target_age_group = target_age_group
         self._applied_ticks: List[int] = []
 
     def is_active(self, tick: int) -> bool:
@@ -51,6 +59,20 @@ class Scenario(ABC):
         if tick < self.start_tick:
             return False
         if self.duration is not None and tick >= self.start_tick + self.duration:
+            return False
+        return True
+        
+    def _is_agent_targeted(self, agent: "Agent") -> bool:
+        """Check if an agent matches the demographic targeting filters."""
+        if self.target_region != "All" and getattr(agent, "region", "All") != self.target_region:
+            return False
+        if self.target_age_group != "All" and getattr(agent, "age", "All") != self.target_age_group:
+            return False
+        return True
+
+    def _is_firm_targeted(self, firm: "Firm") -> bool:
+        """Check if a firm matches the regional targeting filters."""
+        if self.target_region != "All" and getattr(firm, "region", "All") != self.target_region:
             return False
         return True
 
@@ -122,8 +144,10 @@ class MarketingCampaign(Scenario):
         reach: float = 0.5,
         awareness_boost: float = 0.4,
         decay_rate: float = 0.05,
+        target_region: str = "All",
+        target_age_group: str = "All",
     ) -> None:
-        super().__init__(start_tick, duration)
+        super().__init__(start_tick, duration, target_region, target_age_group)
         self.target_good = target_good
         self.spend = spend
         self.reach = reach
@@ -145,6 +169,8 @@ class MarketingCampaign(Scenario):
         current_boost = self.awareness_boost * ((1.0 - self.decay_rate) ** elapsed)
 
         for agent in agents:
+            if not self._is_agent_targeted(agent):
+                continue
             if agent.id in self._exposed_agents:
                 # Boost awareness toward 1.0
                 agent.awareness[self.target_good] = min(
@@ -256,8 +282,10 @@ class FeatureChange(Scenario):
         new_price: Optional[float] = None,
         new_quality: Optional[float] = None,
         availability_multiplier: float = 1.0,
+        target_region: str = "All",
+        target_age_group: str = "All",
     ) -> None:
-        super().__init__(start_tick, duration)
+        super().__init__(start_tick, duration, target_region, target_age_group)
         self.target_good = target_good
         self.new_price = new_price
         self.new_quality = new_quality
@@ -267,6 +295,8 @@ class FeatureChange(Scenario):
 
     def _apply_intervention(self, tick, agents, firms, config, rng):
         for firm in firms:
+            if not self._is_firm_targeted(firm):
+                continue
             if firm.good_produced != self.target_good:
                 continue
 
@@ -315,8 +345,10 @@ class SupplyDisruption(Scenario):
         target_firm: int,
         capacity_reduction: float = 0.5,
         cost_increase: float = 1.5,
+        target_region: str = "All",
+        target_age_group: str = "All",
     ) -> None:
-        super().__init__(start_tick, duration)
+        super().__init__(start_tick, duration, target_region, target_age_group)
         self.target_firm = target_firm
         self.capacity_reduction = capacity_reduction
         self.cost_increase = cost_increase
@@ -325,7 +357,9 @@ class SupplyDisruption(Scenario):
 
     def _apply_intervention(self, tick, agents, firms, config, rng):
         for firm in firms:
-            if firm.id != self.target_firm:
+            if not self._is_firm_targeted(firm):
+                continue
+            if firm.id != self.target_firm and self.target_firm != -1:
                 continue
 
             # Store originals on first tick
@@ -381,14 +415,18 @@ class DemandShock(Scenario):
         duration: int,
         risk_aversion_delta: float = 0.2,
         savings_rate_delta: float = 0.1,
+        target_region: str = "All",
+        target_age_group: str = "All",
     ) -> None:
-        super().__init__(start_tick, duration)
+        super().__init__(start_tick, duration, target_region, target_age_group)
         self.risk_aversion_delta = risk_aversion_delta
         self.savings_rate_delta = savings_rate_delta
         self._originals: Dict[int, tuple] = {}  # agent_id → (risk_av, savings_rate)
 
     def _apply_intervention(self, tick, agents, firms, config, rng):
         for agent in agents:
+            if not self._is_agent_targeted(agent):
+                continue
             # Store originals on first application
             if agent.id not in self._originals:
                 self._originals[agent.id] = (agent.risk_aversion, agent.savings_rate)
@@ -442,8 +480,10 @@ class TradeDisruption(Scenario):
         affected_goods: List[int],
         cost_increase: float = 1.8,
         availability_reduction: float = 0.4,
+        target_region: str = "All",
+        target_age_group: str = "All",
     ) -> None:
-        super().__init__(start_tick, duration)
+        super().__init__(start_tick, duration, target_region, target_age_group)
         self.affected_goods = affected_goods
         self.cost_increase = cost_increase
         self.availability_reduction = availability_reduction
@@ -451,6 +491,8 @@ class TradeDisruption(Scenario):
 
     def _apply_intervention(self, tick, agents, firms, config, rng):
         for firm in firms:
+            if not self._is_firm_targeted(firm):
+                continue
             if firm.good_produced not in self.affected_goods:
                 continue
 

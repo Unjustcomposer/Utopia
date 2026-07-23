@@ -306,6 +306,10 @@ DASHBOARD_HTML = """
                     <label>Base Seed</label>
                     <input type="number" id="cfg-seed" value="42">
                 </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+                    <input type="checkbox" id="cfg-us-calibration" style="width: auto; margin: 0;">
+                    <label style="margin: 0;">Use US Calibration</label>
+                </div>
             </div>
 
             <div class="panel">
@@ -323,6 +327,27 @@ DASHBOARD_HTML = """
                 </div>
                 <div id="scenario-params">
                     <!-- Dynamic inputs injected here -->
+                </div>
+                <div class="panel-title" style="margin-top: 1.5rem; font-size: 1.1rem;">Demographic Targeting</div>
+                <div class="form-group">
+                    <label>Target Region</label>
+                    <select id="target-region">
+                        <option value="All">All Regions</option>
+                        <option value="Northeast">Northeast</option>
+                        <option value="Midwest">Midwest</option>
+                        <option value="South">South</option>
+                        <option value="West">West</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Target Age Group</label>
+                    <select id="target-age-group">
+                        <option value="All">All Ages</option>
+                        <option value="18-35">18-35</option>
+                        <option value="36-50">36-50</option>
+                        <option value="51-65">51-65</option>
+                        <option value="65+">65+</option>
+                    </select>
                 </div>
             </div>
 
@@ -467,7 +492,10 @@ DASHBOARD_HTML = """
                 firms: parseInt(document.getElementById('cfg-firms').value),
                 goods: parseInt(document.getElementById('cfg-goods').value),
                 ticks: parseInt(document.getElementById('cfg-ticks').value),
-                seed: parseInt(document.getElementById('cfg-seed').value)
+                seed: parseInt(document.getElementById('cfg-seed').value),
+                use_us_calibration: document.getElementById('cfg-us-calibration').checked,
+                target_region: document.getElementById('target-region').value,
+                target_age_group: document.getElementById('target-age-group').value
             };
         }
 
@@ -526,7 +554,32 @@ DASHBOARD_HTML = """
             updateChart(charts.gini, metrics.gini, 'Gini', '#f59e0b');
             updateChart(charts.output, metrics.total_output, 'Output', '#a855f7');
             
-            document.getElementById('report-container').classList.add('hidden');
+            // Show demographic cross-tabs for the final tick
+            const finalTick = history[history.length - 1];
+            if (finalTick.welfare_by_region && Object.keys(finalTick.welfare_by_region).length > 1) {
+                let html = `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">`;
+                // Region Table
+                html += `<div><div style="font-weight: 600; margin-bottom: 0.5rem;">By Region</div><table>
+                    <tr><th>Region</th><th>Avg Welfare</th><th>Employment</th></tr>`;
+                for (const [r, w] of Object.entries(finalTick.welfare_by_region)) {
+                    const emp = finalTick.employment_by_region[r] || 0;
+                    html += `<tr><td>${r}</td><td>$${w.toFixed(2)}</td><td>${(emp*100).toFixed(1)}%</td></tr>`;
+                }
+                html += `</table></div>`;
+                // Age Table
+                html += `<div><div style="font-weight: 600; margin-bottom: 0.5rem;">By Age Group</div><table>
+                    <tr><th>Age Group</th><th>Avg Welfare</th><th>Employment</th></tr>`;
+                for (const [a, w] of Object.entries(finalTick.welfare_by_age)) {
+                    const emp = finalTick.employment_by_age[a] || 0;
+                    html += `<tr><td>${a}</td><td>$${w.toFixed(2)}</td><td>${(emp*100).toFixed(1)}%</td></tr>`;
+                }
+                html += `</table></div></div>`;
+                
+                document.getElementById('report-content').innerHTML = html;
+                document.getElementById('report-container').classList.remove('hidden');
+            } else {
+                document.getElementById('report-container').classList.add('hidden');
+            }
             document.getElementById('results-panel').classList.remove('hidden');
         }
 
@@ -771,7 +824,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 num_agents=data.get('agents', 200),
                 num_firms=data.get('firms', 5),
                 num_goods=data.get('goods', 4),
-                num_ticks=data.get('ticks', 120)
+                num_ticks=data.get('ticks', 120),
+                use_us_calibration=data.get('use_us_calibration', False)
             )
             sim = Simulation(config=config, seed=data.get('seed', 42))
             result = sim.run()
@@ -791,10 +845,17 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 num_agents=data.get('agents', 200),
                 num_firms=data.get('firms', 5),
                 num_goods=data.get('goods', 4),
-                num_ticks=data.get('ticks', 90)
+                num_ticks=data.get('ticks', 90),
+                use_us_calibration=data.get('use_us_calibration', False)
             )
             scenario_type = data.get('scenario_type', 'marketing')
             scenario_params = data.get('scenario_params', {})
+            # Add targeting params if present
+            if 'target_region' in data:
+                scenario_params['target_region'] = data['target_region']
+            if 'target_age_group' in data:
+                scenario_params['target_age_group'] = data['target_age_group']
+                
             scenario = create_scenario(scenario_type, **scenario_params)
             
             exp = Experiment(
@@ -861,7 +922,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 num_agents=data.get('agents', 150),
                 num_firms=data.get('firms', 5),
                 num_goods=data.get('goods', 4),
-                num_ticks=data.get('ticks', 90)
+                num_ticks=data.get('ticks', 90),
+                use_us_calibration=data.get('use_us_calibration', False)
             )
 
             scenario_type = data.get('scenario_type', 'feature_change')
@@ -870,6 +932,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             def scenario_factory(params):
                 sp = data.get('scenario_params', {})
                 sp.update(params)
+                if 'target_region' in data:
+                    sp['target_region'] = data['target_region']
+                if 'target_age_group' in data:
+                    sp['target_age_group'] = data['target_age_group']
                 if 'start_tick' not in sp:
                     sp['start_tick'] = 15
                 if 'duration' not in sp:

@@ -32,7 +32,7 @@ class Agent:
     __slots__ = (
         "id", "wage", "budget", "savings", "employed", "employer_id",
         "risk_aversion", "savings_rate", "preferences", "awareness",
-        "memory", "_cfg",
+        "memory", "age", "region", "_cfg",
     )
 
     def __init__(
@@ -40,9 +40,13 @@ class Agent:
         agent_id: int,
         config: SimulationConfig,
         rng: np.random.Generator,
+        age: str = "36-50",
+        region: str = "Midwest",
     ) -> None:
         self.id = agent_id
         self._cfg = config
+        self.age = age
+        self.region = region
         self.wage = 0.0
         self.budget = rng.uniform(config.initial_budget_min, config.initial_budget_max)
         self.savings = 0.0
@@ -160,6 +164,7 @@ class Firm:
         "production_capacity", "employees", "revenue_history",
         "demand_history", "input_cost_multiplier", "_cfg",
         "cumulative_revenue", "cumulative_cost", "wage_offer",
+        "region",
     )
 
     def __init__(
@@ -168,10 +173,12 @@ class Firm:
         good_produced: int,
         config: SimulationConfig,
         rng: np.random.Generator,
+        region: str = "Midwest",
     ) -> None:
         self.id = firm_id
         self.good_produced = good_produced
         self._cfg = config
+        self.region = region
         self.cash = rng.uniform(config.initial_firm_cash_min, config.initial_firm_cash_max)
         self.price = rng.uniform(config.base_price_min, config.base_price_max)
         self.quality = rng.uniform(0.5, 1.5)

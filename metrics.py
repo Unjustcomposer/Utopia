@@ -114,6 +114,30 @@ def aggregate_tick_metrics(
     prices = market_data.get("prices", np.array([]))
     volumes = market_data.get("volumes", np.array([]))
 
+    # Compute demographic cross-tabs
+    welfare_by_region = {}
+    welfare_by_age = {}
+    emp_by_region = {}
+    emp_by_age = {}
+    
+    if agents and hasattr(agents[0], "region"):
+        for a in agents:
+            welfare = a.budget + a.savings
+            # Region
+            r = getattr(a, "region", "All")
+            welfare_by_region.setdefault(r, []).append(welfare)
+            emp_by_region.setdefault(r, []).append(1 if a.employed else 0)
+            # Age
+            age = getattr(a, "age", "All")
+            welfare_by_age.setdefault(age, []).append(welfare)
+            emp_by_age.setdefault(age, []).append(1 if a.employed else 0)
+
+    # Summarize cross-tabs (mean welfare, employment rate)
+    welfare_by_region = {r: float(np.mean(w)) for r, w in welfare_by_region.items()}
+    welfare_by_age = {a: float(np.mean(w)) for a, w in welfare_by_age.items()}
+    emp_by_region = {r: float(np.mean(e)) for r, e in emp_by_region.items()}
+    emp_by_age = {a: float(np.mean(e)) for a, e in emp_by_age.items()}
+
     return {
         "tick": tick,
         "gini": compute_gini(budgets),
@@ -122,6 +146,10 @@ def aggregate_tick_metrics(
         "total_welfare": compute_total_welfare(agents),
         "total_output": compute_total_output(market_data),
         "average_wage": compute_average_wage(agents),
+        "welfare_by_region": welfare_by_region,
+        "welfare_by_age": welfare_by_age,
+        "employment_by_region": emp_by_region,
+        "employment_by_age": emp_by_age,
         "prices": prices.tolist() if hasattr(prices, "tolist") else list(prices),
         "volumes": volumes.tolist() if hasattr(volumes, "tolist") else list(volumes),
         "unmet_demand": market_data.get("unmet_demand", np.array([])).tolist(),
