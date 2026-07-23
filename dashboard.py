@@ -287,19 +287,19 @@ DASHBOARD_HTML = """
                 <div class="panel-title">Configuration</div>
                 <div class="form-group">
                     <label>Agents</label>
-                    <input type="number" id="cfg-agents" value="1000">
+                    <input type="number" id="cfg-agents" value="100">
                 </div>
                 <div class="form-group">
                     <label>Firms</label>
-                    <input type="number" id="cfg-firms" value="50">
+                    <input type="number" id="cfg-firms" value="5">
                 </div>
                 <div class="form-group">
                     <label>Goods</label>
-                    <input type="number" id="cfg-goods" value="10">
+                    <input type="number" id="cfg-goods" value="4">
                 </div>
                 <div class="form-group">
                     <label>Ticks (Duration)</label>
-                    <input type="number" id="cfg-ticks" value="100">
+                    <input type="number" id="cfg-ticks" value="60">
                 </div>
                 <div class="form-group">
                     <label>Base Seed</label>
@@ -313,7 +313,7 @@ DASHBOARD_HTML = """
                     <label>Scenario Type</label>
                     <select id="scenario-type" onchange="updateScenarioParams()">
                         <option value="none">None (Baseline)</option>
-                        <option value="marketing_campaign">Marketing Campaign</option>
+                        <option value="marketing">Marketing Campaign</option>
                         <option value="supply_disruption">Supply Disruption</option>
                         <option value="demand_shock">Demand Shock</option>
                         <option value="trade_disruption">Trade Disruption</option>
@@ -393,10 +393,10 @@ DASHBOARD_HTML = """
                 }
             };
 
-            charts.price = new Chart(ctxPrice, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { title: { display: true, text: 'Price Index' } } } });
-            charts.employment = new Chart(ctxEmp, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { title: { display: true, text: 'Employment Rate' } } } });
-            charts.gini = new Chart(ctxGini, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { title: { display: true, text: 'Gini Coefficient' } } } });
-            charts.output = new Chart(ctxOutput, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { title: { display: true, text: 'Total Output' } } } });
+            charts.price = new Chart(ctxPrice, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Price Index' } } } });
+            charts.employment = new Chart(ctxEmp, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Employment Rate' } } } });
+            charts.gini = new Chart(ctxGini, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Gini Coefficient' } } } });
+            charts.output = new Chart(ctxOutput, { type: 'line', data: { datasets: [] }, options: { ...commonOptions, plugins: { ...commonOptions.plugins, title: { display: true, text: 'Total Output' } } } });
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -404,12 +404,42 @@ DASHBOARD_HTML = """
             updateScenarioParams();
         });
 
+        // Scenario param schemas that match create_scenario kwargs
         const SCENARIO_SCHEMA = {
-            marketing_campaign: [{name: 'firm_id', type: 'number', default: 0}, {name: 'budget', type: 'number', default: 1000}],
-            supply_disruption: [{name: 'good_id', type: 'number', default: 0}, {name: 'intensity', type: 'number', step: 0.1, default: 0.5}],
-            demand_shock: [{name: 'good_id', type: 'number', default: 0}, {name: 'magnitude', type: 'number', step: 0.1, default: 1.5}],
-            trade_disruption: [{name: 'severity', type: 'number', step: 0.1, default: 0.8}],
-            feature_change: [{name: 'firm_id', type: 'number', default: 0}, {name: 'quality_boost', type: 'number', step: 0.1, default: 0.2}]
+            marketing: [
+                {name: 'start_tick', type: 'number', default: 10},
+                {name: 'duration', type: 'number', default: 30},
+                {name: 'target_good', type: 'number', default: 0},
+                {name: 'spend', type: 'number', default: 5000},
+                {name: 'reach', type: 'number', step: 0.1, default: 0.6},
+                {name: 'awareness_boost', type: 'number', step: 0.1, default: 0.5}
+            ],
+            supply_disruption: [
+                {name: 'start_tick', type: 'number', default: 15},
+                {name: 'duration', type: 'number', default: 20},
+                {name: 'target_firm', type: 'number', default: 0},
+                {name: 'capacity_reduction', type: 'number', step: 0.1, default: 0.5},
+                {name: 'cost_increase', type: 'number', step: 0.1, default: 1.5}
+            ],
+            demand_shock: [
+                {name: 'start_tick', type: 'number', default: 15},
+                {name: 'duration', type: 'number', default: 30},
+                {name: 'risk_aversion_delta', type: 'number', step: 0.05, default: 0.2},
+                {name: 'savings_rate_delta', type: 'number', step: 0.01, default: 0.05}
+            ],
+            trade_disruption: [
+                {name: 'start_tick', type: 'number', default: 15},
+                {name: 'duration', type: 'number', default: 25},
+                {name: 'tariff_rate', type: 'number', step: 0.1, default: 0.3},
+                {name: 'affected_goods_fraction', type: 'number', step: 0.1, default: 0.5}
+            ],
+            feature_change: [
+                {name: 'start_tick', type: 'number', default: 10},
+                {name: 'duration', type: 'number', default: 40},
+                {name: 'target_good', type: 'number', default: 0},
+                {name: 'new_price', type: 'number', step: 1, default: 12},
+                {name: 'new_quality', type: 'number', step: 0.1, default: 1.2}
+            ]
         };
 
         function updateScenarioParams() {
@@ -423,7 +453,7 @@ DASHBOARD_HTML = """
                 const step = param.step ? `step="${param.step}"` : '';
                 container.innerHTML += `
                     <div class="form-group" style="margin-left: 1rem; border-left: 2px solid var(--panel-border); padding-left: 1rem;">
-                        <label>${param.name.replace('_', ' ').toUpperCase()}</label>
+                        <label>${param.name.replace(/_/g, ' ').toUpperCase()}</label>
                         <input type="${param.type}" id="param-${param.name}" value="${param.default}" ${step} class="scenario-param" data-name="${param.name}">
                     </div>
                 `;
@@ -446,7 +476,8 @@ DASHBOARD_HTML = """
             
             const params = {};
             document.querySelectorAll('.scenario-param').forEach(input => {
-                params[input.dataset.name] = parseFloat(input.value);
+                const val = parseFloat(input.value);
+                params[input.dataset.name] = Number.isInteger(val) && !input.step ? parseInt(input.value) : val;
             });
             
             return { type, params };
@@ -461,8 +492,21 @@ DASHBOARD_HTML = """
             document.getElementById('loader').classList.remove('active');
         }
 
+        // Extract arrays from list-of-dicts metrics_history
+        function extractMetricArrays(history) {
+            const result = { price_index: [], employment_rate: [], gini: [], total_output: [] };
+            for (const tick of history) {
+                result.price_index.push(tick.price_index || 0);
+                result.employment_rate.push(tick.employment_rate || 0);
+                result.gini.push(tick.gini || 0);
+                result.total_output.push(tick.total_output || 0);
+            }
+            return result;
+        }
+
         function renderSingleCharts(history) {
-            const ticks = Array.from({length: history.price_index.length}, (_, i) => i);
+            const metrics = extractMetricArrays(history);
+            const ticks = Array.from({length: metrics.price_index.length}, (_, i) => i);
             
             const updateChart = (chart, data, label, color) => {
                 chart.data.labels = ticks;
@@ -476,19 +520,21 @@ DASHBOARD_HTML = """
                 chart.update();
             };
 
-            updateChart(charts.price, history.price_index, 'Price Index', '#3b82f6');
-            updateChart(charts.employment, history.employment_rate, 'Employment', '#10b981');
-            updateChart(charts.gini, history.gini_coefficient, 'Gini', '#f59e0b');
-            updateChart(charts.output, history.total_output, 'Output', '#a855f7');
+            updateChart(charts.price, metrics.price_index, 'Price Index', '#3b82f6');
+            updateChart(charts.employment, metrics.employment_rate, 'Employment', '#10b981');
+            updateChart(charts.gini, metrics.gini, 'Gini', '#f59e0b');
+            updateChart(charts.output, metrics.total_output, 'Output', '#a855f7');
             
             document.getElementById('report-container').classList.add('hidden');
             document.getElementById('results-panel').classList.remove('hidden');
         }
 
-        function renderExperimentCharts(control, treatment) {
-            const ticks = Array.from({length: control.price_index.length}, (_, i) => i);
+        function renderExperimentCharts(controlList, treatmentList) {
+            const ctrl = extractMetricArrays(controlList);
+            const treat = extractMetricArrays(treatmentList);
+            const ticks = Array.from({length: ctrl.price_index.length}, (_, i) => i);
             
-            const updateChart = (chart, dataC, dataT, title) => {
+            const updateChart = (chart, dataC, dataT) => {
                 chart.data.labels = ticks;
                 chart.data.datasets = [
                     { label: 'Control', data: dataC, borderColor: '#94a3b8', borderDash: [5, 5] },
@@ -497,24 +543,26 @@ DASHBOARD_HTML = """
                 chart.update();
             };
 
-            updateChart(charts.price, control.price_index, treatment.price_index);
-            updateChart(charts.employment, control.employment_rate, treatment.employment_rate);
-            updateChart(charts.gini, control.gini_coefficient, treatment.gini_coefficient);
-            updateChart(charts.output, control.total_output, treatment.total_output);
+            updateChart(charts.price, ctrl.price_index, treat.price_index);
+            updateChart(charts.employment, ctrl.employment_rate, treat.employment_rate);
+            updateChart(charts.gini, ctrl.gini, treat.gini);
+            updateChart(charts.output, ctrl.total_output, treat.total_output);
         }
 
         function renderDeltasTable(deltas) {
             let html = `<table>
-                <tr><th>Metric</th><th>Delta</th><th>CI (95%)</th><th>Status</th></tr>`;
+                <tr><th>Metric</th><th>Delta</th><th>CI (95%)</th><th>Effect Size</th><th>Status</th></tr>`;
             
             for (const [metric, data] of Object.entries(deltas)) {
                 const isSig = data.significant ? "Significant" : "Not Sig.";
-                const colorCls = data.mean > 0 ? "delta-positive" : "delta-negative";
+                const sigColor = data.significant ? 'var(--green)' : 'var(--text-muted)';
+                const colorCls = data.mean_delta > 0 ? "delta-positive" : "delta-negative";
                 html += `<tr>
-                    <td>${metric.replace('_', ' ').toUpperCase()}</td>
-                    <td class="${colorCls}">${data.mean.toFixed(4)}</td>
-                    <td>[${data.ci_lower.toFixed(4)}, ${data.ci_upper.toFixed(4)}]</td>
-                    <td>${isSig}</td>
+                    <td>${metric.replace(/_/g, ' ')}</td>
+                    <td class="${colorCls}">${data.mean_delta.toFixed(3)}</td>
+                    <td>[${data.ci_lower.toFixed(3)}, ${data.ci_upper.toFixed(3)}]</td>
+                    <td>d = ${data.effect_size.toFixed(3)}</td>
+                    <td style="color: ${sigColor}">${isSig}</td>
                 </tr>`;
             }
             html += `</table>`;
@@ -525,25 +573,42 @@ DASHBOARD_HTML = """
             document.getElementById('results-panel').classList.remove('hidden');
         }
 
-        function renderSearchTable(candidates) {
+        function renderSearchTable(candidates, robustness) {
             let html = `<table>
-                <tr><th>Rank</th><th>Params</th><th>Score</th><th>Robustness</th></tr>`;
+                <tr><th>Rank</th><th>Parameters</th><th>Objective</th><th>CI</th></tr>`;
             
-            candidates.forEach((cand, i) => {
+            candidates.forEach(cand => {
+                const paramStr = Object.entries(cand.params).map(([k,v]) => `${k}=${v}`).join(', ');
                 html += `<tr>
-                    <td>${i + 1}</td>
-                    <td><pre style="margin:0; font-size:0.75rem">${JSON.stringify(cand.params)}</pre></td>
-                    <td>${cand.score.toFixed(4)}</td>
-                    <td>${cand.robust ? '✅ Robust' : '⚠️ Unstable'}</td>
+                    <td>#${cand.rank}</td>
+                    <td><code style="font-size:0.8rem">${paramStr}</code></td>
+                    <td>${cand.objective_mean.toFixed(2)}</td>
+                    <td>[${cand.ci_lower.toFixed(2)}, ${cand.ci_upper.toFixed(2)}]</td>
                 </tr>`;
             });
             html += `</table>`;
+
+            if (robustness && robustness.length > 0) {
+                html += `<div style="margin-top:1.5rem"><div class="panel-title"><span>Robustness Validation</span><span class="badge-simulated">(simulated)</span></div>`;
+                html += `<table><tr><th>Params</th><th>Search</th><th>Validation</th><th>Degradation</th><th>Status</th></tr>`;
+                robustness.forEach(rc => {
+                    const paramStr = Object.entries(rc.params).map(([k,v]) => `${k}=${v}`).join(', ');
+                    const status = rc.is_overfit ? '<span style="color:var(--rose)">OVERFIT</span>' : '<span style="color:var(--green)">ROBUST</span>';
+                    html += `<tr>
+                        <td><code style="font-size:0.8rem">${paramStr}</code></td>
+                        <td>${rc.search_mean.toFixed(2)}</td>
+                        <td>${rc.validation_mean.toFixed(2)}</td>
+                        <td>${rc.degradation_ratio.toFixed(2)}x</td>
+                        <td>${status}</td>
+                    </tr>`;
+                });
+                html += `</table></div>`;
+            }
             
             const rc = document.getElementById('report-container');
             document.getElementById('report-content').innerHTML = html;
             rc.classList.remove('hidden');
             
-            // Hide charts for search
             document.querySelector('.charts-grid').classList.add('hidden');
             document.getElementById('results-panel').classList.remove('hidden');
         }
@@ -557,6 +622,7 @@ DASHBOARD_HTML = """
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(reqData)
                 });
+                if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
                 
                 document.getElementById('results-title').innerText = "Baseline Results";
@@ -564,7 +630,7 @@ DASHBOARD_HTML = """
                 renderSingleCharts(data.metrics_history);
             } catch (err) {
                 console.error(err);
-                alert("Error running simulation");
+                alert("Error: " + err.message);
             }
             hideLoader();
         }
@@ -576,7 +642,7 @@ DASHBOARD_HTML = """
                 return;
             }
             
-            showLoader("Running Experiment (Control vs Treatment)...");
+            showLoader("Running Experiment (Control vs Treatment)... This may take 30-60s");
             try {
                 const reqData = {
                     ...getBaseConfig(),
@@ -590,34 +656,37 @@ DASHBOARD_HTML = """
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(reqData)
                 });
+                if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
                 
-                document.getElementById('results-title').innerText = "Experiment Results: " + sc.type;
+                document.getElementById('results-title').innerText = "Experiment: " + sc.type.replace(/_/g, ' ');
                 document.querySelector('.charts-grid').classList.remove('hidden');
                 
                 renderExperimentCharts(data.control_metrics, data.treatment_metrics);
                 renderDeltasTable(data.deltas);
             } catch (err) {
                 console.error(err);
-                alert("Error running experiment");
+                alert("Error: " + err.message);
             }
             hideLoader();
         }
 
         async function runSearch() {
-            const type = document.getElementById('scenario-type').value;
-            if (type === 'none') {
+            const sc = getScenarioConfig();
+            if (!sc) {
                 alert("Please select a scenario to optimize.");
                 return;
             }
 
-            showLoader("Running Strategy Search (MCTS)...");
+            showLoader("Running Strategy Search... This may take 1-3 minutes");
             try {
                 const reqData = {
-                    scenario_type: type,
-                    seeds_per_eval: 3,
-                    objective: 'total_welfare_objective', // simplified for dashboard
-                    param_space: {} // Will be generated in backend based on type
+                    ...getBaseConfig(),
+                    scenario_type: sc.type,
+                    scenario_params: sc.params,
+                    seeds_per_eval: 4,
+                    objective: 'welfare',
+                    method: 'grid'
                 };
                 
                 const res = await fetch('/api/search', {
@@ -625,13 +694,14 @@ DASHBOARD_HTML = """
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(reqData)
                 });
+                if (!res.ok) throw new Error(await res.text());
                 const data = await res.json();
                 
-                document.getElementById('results-title').innerText = "Strategy Search Results";
-                renderSearchTable(data.candidates);
+                document.getElementById('results-title').innerText = "Strategy Search: " + (data.objective || sc.type);
+                renderSearchTable(data.candidates, data.robustness_checks);
             } catch (err) {
                 console.error(err);
-                alert("Error running search");
+                alert("Error: " + err.message);
             }
             hideLoader();
         }
