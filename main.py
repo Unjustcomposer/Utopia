@@ -151,8 +151,8 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 def cmd_demo(args: argparse.Namespace) -> None:
     """Run all 3 example experiments from the README."""
-    config = SimulationConfig(num_ticks=90, num_agents=150)
-    seeds = 8  # fewer for demo speed
+    config = SimulationConfig(num_ticks=60, num_agents=80)
+    seeds = 4  # fewer for demo speed
 
     print("=" * 78)
     print("  NexusAI DEMO: 3 Example Experiments (simulated)")
@@ -164,7 +164,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
 
     def marketing_factory(params):
         return MarketingCampaign(
-            start_tick=15, duration=40, target_good=0,
+            start_tick=10, duration=30, target_good=0,
             spend=params["spend"], reach=params.get("reach", 0.5),
             awareness_boost=0.3 + params["spend"] / 20000,  # spend -> awareness
         )
@@ -172,7 +172,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
     search1 = StrategySearch(
         config=config,
         scenario_factory=marketing_factory,
-        param_space={"spend": [0, 2000, 4000, 6000, 8000, 10000]},
+        param_space={"spend": [0, 3000, 6000, 10000]},
         objective=firm_profit_objective(firm_id=0),
         method="grid",
         num_seeds_per_eval=seeds,
@@ -187,7 +187,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
     print("  50% capacity reduction for firm 0 over 20 ticks\n")
 
     scenario2 = SupplyDisruption(
-        start_tick=20, duration=20, target_firm=0,
+        start_tick=15, duration=20, target_firm=0,
         capacity_reduction=0.5, cost_increase=1.5,
     )
     exp2 = Experiment(config=config, scenario=scenario2, num_seeds=seeds, base_seed=77)
@@ -200,11 +200,11 @@ def cmd_demo(args: argparse.Namespace) -> None:
 
     def pricing_under_shock_factory(params):
         demand_shock = DemandShock(
-            start_tick=15, duration=50,
+            start_tick=10, duration=40,
             risk_aversion_delta=0.2, savings_rate_delta=0.05,
         )
         feature = FeatureChange(
-            start_tick=15, duration=50, target_good=0,
+            start_tick=10, duration=40, target_good=0,
             new_price=params["price"], new_quality=params.get("quality", 1.0),
         )
         return CompositeScenario([demand_shock, feature])
@@ -213,7 +213,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
         config=config,
         scenario_factory=pricing_under_shock_factory,
         param_space={
-            "price": [8, 10, 12, 14, 16, 18, 20],
+            "price": [8, 12, 16, 20],
             "quality": [0.8, 1.0, 1.2],
         },
         objective=firm_profit_objective(firm_id=0),

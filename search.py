@@ -303,19 +303,25 @@ class StrategySearch:
         return np.array(obj_values)
 
     def _grid_combinations(self) -> List[Dict[str, float]]:
-        """Generate all combinations from grid-defined param space."""
+        """Generate all combinations from grid-defined param space.
+
+        Interpretation rules:
+          - tuple of 3 numbers: (min, max, step) → generates a range via np.arange
+          - list or tuple of other lengths: discrete values used as-is
+          - single scalar: wrapped in a list
+        """
         keys = list(self.param_space.keys())
         value_lists = []
         for key in keys:
             spec = self.param_space[key]
-            if isinstance(spec, (list, tuple, np.ndarray)):
-                if len(spec) == 3 and all(isinstance(s, (int, float)) for s in spec):
-                    # Treat as (min, max, step)
-                    value_lists.append(
-                        np.arange(spec[0], spec[1] + spec[2] * 0.5, spec[2]).tolist()
-                    )
-                else:
-                    value_lists.append(list(spec))
+            if isinstance(spec, tuple) and len(spec) == 3 and all(isinstance(s, (int, float)) for s in spec):
+                # Tuple of 3 numbers → treat as (min, max, step)
+                value_lists.append(
+                    np.arange(spec[0], spec[1] + spec[2] * 0.5, spec[2]).tolist()
+                )
+            elif isinstance(spec, (list, tuple, np.ndarray)):
+                # List or other iterable → discrete values
+                value_lists.append(list(spec))
             else:
                 value_lists.append([spec])
 

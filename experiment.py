@@ -82,7 +82,7 @@ class ExperimentResult:
             f"  Confidence:  {self.confidence_level:.0%}",
             f"  Runtime:     {self.runtime_seconds:.1f}s",
             "-" * 78,
-            "  METRIC DELTAS (treatment − control):",
+            "  METRIC DELTAS (treatment - control):",
             "-" * 78,
         ]
         for md in self.metric_deltas.values():
@@ -255,17 +255,8 @@ class Experiment:
         params = {k: v for k, v in params.items() if not k.startswith("_")}
 
         from scenario import create_scenario
-        # Handle composite separately
-        if stype == "CompositeScenario":
-            from scenario import CompositeScenario
-            sub_scenarios = []
-            for sp in params.get("sub_scenarios", []):
-                st = sp.pop("type")
-                sp = {k: v for k, v in sp.items() if not k.startswith("_")}
-                sub_scenarios.append(create_scenario(st.lower().replace("scenario", "").strip(), **sp))
-            return CompositeScenario(sub_scenarios)
 
-        # Map class name back to type key
+        # Map class name back to factory type key
         type_map = {
             "MarketingCampaign": "marketing",
             "ProductLaunch": "product_launch",
@@ -274,6 +265,18 @@ class Experiment:
             "DemandShock": "demand_shock",
             "TradeDisruption": "trade_disruption",
         }
+
+        # Handle composite separately
+        if stype == "CompositeScenario":
+            from scenario import CompositeScenario
+            sub_scenarios = []
+            for sp in params.get("sub_scenarios", []):
+                st = sp.pop("type")
+                sp = {k: v for k, v in sp.items() if not k.startswith("_")}
+                type_key = type_map.get(st, st.lower())
+                sub_scenarios.append(create_scenario(type_key, **sp))
+            return CompositeScenario(sub_scenarios)
+
         type_key = type_map.get(stype, stype.lower())
         return create_scenario(type_key, **params)
 

@@ -857,10 +857,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 def start_dashboard(port=8765):
     """Launch the interactive web dashboard."""
     server = http.server.HTTPServer(('0.0.0.0', port), DashboardHandler)
-    print(f"╔══════════════════════════════════════════════════════════╗")
-    print(f"║  NexusAI Dashboard running at http://localhost:{port}     ║")
-    print(f"║  All results are simulated, not real-world predictions  ║")
-    print(f"╚══════════════════════════════════════════════════════════╝")
+    print(f"==========================================================")
+    print(f"  NexusAI Dashboard running at http://localhost:{port}")
+    print(f"  All results are simulated, not real-world predictions")
+    print(f"==========================================================")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
