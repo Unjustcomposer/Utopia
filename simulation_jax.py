@@ -187,7 +187,8 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     foreign = ForeignState(
         exchange_rate=jnp.array(1.0),
         exports=jnp.array(0.0),
-        imports=jnp.array(0.0)
+        imports=jnp.array(0.0),
+        cash=jnp.array(0.0)
     )
     
     # Initialize LMM Transformer Weights

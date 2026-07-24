@@ -84,6 +84,7 @@ class ForeignState(NamedTuple):
     exchange_rate: jnp.ndarray    # scalar
     exports: jnp.ndarray          # scalar
     imports: jnp.ndarray          # scalar
+    cash: jnp.ndarray             # scalar
 
 class SimState(NamedTuple):
     agents: AgentState
