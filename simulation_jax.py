@@ -30,7 +30,7 @@ class SimulationResult:
             return {}
         return self.metrics_history[-1]
 
-def init_sim_state(config: SimulationConfig, seed: int) -> SimState:
+def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None) -> SimState:
     """Initializes the JAX PyTree state."""
     key = jax.random.PRNGKey(seed)
     
@@ -90,6 +90,13 @@ def init_sim_state(config: SimulationConfig, seed: int) -> SimState:
     neighbors = jax.random.randint(subkey, (config.num_agents, 5), 0, config.num_agents)
     insured = jnp.zeros(config.num_agents, dtype=jnp.bool_)
     
+    # Apply baseline data overrides for Agents
+    if baseline_state_overrides:
+        if "agent_budgets" in baseline_state_overrides:
+            budget = baseline_state_overrides["agent_budgets"]
+        if "agent_savings_rates" in baseline_state_overrides:
+            savings_rate = baseline_state_overrides["agent_savings_rates"]
+    
     agents = AgentState(
         budget=budget, wage=wage, savings=savings, employed=employed,
         employer_id=employer_id, risk_aversion=risk_aversion, savings_rate=savings_rate,
@@ -135,6 +142,15 @@ def init_sim_state(config: SimulationConfig, seed: int) -> SimState:
     firm_region_id = jax.random.randint(subkey, (config.num_firms,), 0, config.num_regions)
     menu_cost_paid = jnp.zeros(config.num_firms, dtype=jnp.bool_)
     
+    # Apply baseline data overrides for Firms
+    if baseline_state_overrides:
+        if "firm_capacities" in baseline_state_overrides:
+            production_capacity = baseline_state_overrides["firm_capacities"]
+        if "firm_cash" in baseline_state_overrides:
+            cash = baseline_state_overrides["firm_cash"]
+            # Recalculate equity
+            equity = cash + inventory * price + capital_goods * config.capital_cost - debt
+    
     firms = FirmState(
         good_produced=good_produced, cash=cash, inventory=inventory, price=price, quality=quality,
         production_capacity=production_capacity, num_employees=num_employees, wage_offer=wage_offer,
@@ -159,8 +175,12 @@ def init_sim_state(config: SimulationConfig, seed: int) -> SimState:
     )
     
     # 5. Housing & Foreign
+    housing_supply = jnp.ones(config.num_regions) * 1000.0
+    if baseline_state_overrides and "housing_supply" in baseline_state_overrides:
+        housing_supply = baseline_state_overrides["housing_supply"]
+        
     housing = HousingState(
-        supply=jnp.ones(config.num_regions) * 1000.0,
+        supply=housing_supply,
         price=jnp.ones(config.num_regions) * 200.0
     )
     
@@ -179,24 +199,32 @@ def init_sim_state(config: SimulationConfig, seed: int) -> SimState:
 
 # We pass SimulationConfig directly since it is a flax PyTree
 @partial(jax.jit, static_argnames=('num_ticks',))
-def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig):
+def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig, shocks_matrix: jnp.ndarray):
     
-    def scan_body(state, _):
-        new_state = simulation_step(state, config)
+    def scan_body(state, tick_shocks):
+        hike_amt, savings_inc, cost_mult = tick_shocks
+        
+        # Apply shocks
+        new_macro = state.macro._replace(base_rate=state.macro.base_rate + hike_amt)
+        new_agents = state.agents._replace(savings_rate=jnp.clip(state.agents.savings_rate + savings_inc, 0.0, 0.9))
+        new_firms = state.firms._replace(input_cost_multiplier=state.firms.input_cost_multiplier * cost_mult)
+        
+        shocked_state = state._replace(macro=new_macro, agents=new_agents, firms=new_firms)
+        
+        new_state = simulation_step(shocked_state, config)
         
         # Calculate tick metrics to return as stacked arrays
-        # (JAX lax.scan requires consistent shapes)
         tick_metrics = {
             "price_index": new_state.macro.price_index,
             "employment_rate": jnp.mean(new_state.agents.employed.astype(jnp.float32)),
-            "total_output": jnp.sum(new_state.firms.inventory), # Simplified
-            "gini": 0.0, # Expensive to calculate exact Gini in JAX inside the loop, set 0
+            "total_output": jnp.sum(new_state.firms.inventory), 
+            "gini": 0.0, 
             "total_welfare": jnp.sum(new_state.agents.savings)
         }
         
         return new_state, tick_metrics
 
-    final_state, stacked_metrics = jax.lax.scan(scan_body, initial_state, None, length=num_ticks)
+    final_state, stacked_metrics = jax.lax.scan(scan_body, initial_state, shocks_matrix, length=num_ticks)
     return final_state, stacked_metrics
 
 class JAXSimulation:
@@ -204,7 +232,9 @@ class JAXSimulation:
         self,
         config: SimulationConfig,
         seed: Any,
-        scenario: Optional[Any] = None,
+        scenario: Optional[str] = "baseline",
+        baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None,
+        telematics_multiplier: float = 1.0,
     ) -> None:
         self.config = config
         
@@ -214,12 +244,16 @@ class JAXSimulation:
         else:
             self.seed = int(seed)
             
-        self.scenario = scenario # Scenarios are tricky to port to JAX statically right now, ignoring for MVP
+        self.scenario = scenario
+        self.baseline_state_overrides = baseline_state_overrides
+        self.initial_state = init_sim_state(self.config, self.seed, self.baseline_state_overrides)
         
-        self.initial_state = init_sim_state(self.config, self.seed)
+        # Generate shocks
+        from scenarios import generate_shock_matrix
+        self.shocks_matrix = jnp.array(generate_shock_matrix(self.config.num_ticks, self.scenario, telematics_multiplier))
 
     def run(self) -> SimulationResult:
-        final_state, stacked_metrics = _run_scan(self.initial_state, self.config.num_ticks, self.config)
+        final_state, stacked_metrics = _run_scan(self.initial_state, self.config.num_ticks, self.config, self.shocks_matrix)
         
         # Unpack stacked_metrics (JAX arrays) into a list of dicts for the legacy Dashboard
         metrics_history = []
@@ -251,6 +285,6 @@ class JAXSimulation:
         )
         return result
 
-def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None) -> SimulationResult:
-    sim = JAXSimulation(config=config, seed=seed, scenario=scenario)
+def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, telematics_multiplier: float = 1.0) -> SimulationResult:
+    sim = JAXSimulation(config=config, seed=seed, scenario=scenario, baseline_state_overrides=baseline_state_overrides, telematics_multiplier=telematics_multiplier)
     return sim.run()

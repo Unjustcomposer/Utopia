@@ -4,6 +4,7 @@ import optax
 from config import SimulationConfig
 from simulation_jax import _run_scan, init_sim_state
 from state import SimState
+from scenarios import generate_shock_matrix
 
 def macroeconomic_objective(lmm_params, initial_state: SimState, config: SimulationConfig):
     """
@@ -13,8 +14,11 @@ def macroeconomic_objective(lmm_params, initial_state: SimState, config: Simulat
     # Bind the LMM parameters into the initial state
     state = initial_state._replace(lmm_params=lmm_params)
     
+    # Generate baseline shocks matrix
+    shocks_matrix = jnp.array(generate_shock_matrix(config.num_ticks, "baseline"))
+    
     # Run the simulation
-    final_state, stacked_metrics = _run_scan(state, config.num_ticks, config)
+    final_state, stacked_metrics = _run_scan(state, config.num_ticks, config, shocks_matrix)
     
     # Objective: Maximize GDP (Total Output) while penalizing high inflation and Gini
     # We negate it because we are using gradient descent (minimizing loss)
@@ -51,7 +55,7 @@ def train_lmm():
     loss_and_grad_fn = jax.value_and_grad(macroeconomic_objective, has_aux=True)
     loss_and_grad_fn_jit = jax.jit(loss_and_grad_fn, static_argnames=("config",))
     
-    num_epochs = 100
+    num_epochs = 2
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}: Running forward sim and backward trace...")
         
@@ -67,5 +71,4 @@ def train_lmm():
     print("LMM Training Complete. The Firm Transformer has learned a macroeconomic policy.")
 
 if __name__ == "__main__":
-    # train_lmm()
-    pass
+    train_lmm()

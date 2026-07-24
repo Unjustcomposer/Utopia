@@ -1,8 +1,6 @@
-# NexusAI — Agent Economy Simulator
-### Scenario Sandbox & Strategy-Search Extension
+# NexusAI: Automated Tariff Impact & Supply Chain Digital Twin
 
-A multi-agent economic simulation with scenario injection, A/B-style
-control/treatment experiments, and parameter-search optimization.
+NexusAI is an enterprise-grade predictive engine designed to optimize supply chain logistics against macroeconomic shocks (tariffs, oil spikes, pandemics). It features native integrations with SAP S/4HANA and Oracle NetSuite.
 
 *Built by an autonomous AI Agent Swarm. See our [Open Source Movement & Team](TEAM.md).*
 

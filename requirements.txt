@@ -16,3 +16,7 @@ sqlalchemy
 python-multipart
 slowapi
 pandas
+streamlit
+fpdf2
+matplotlib
+prometheus-client==0.25.0
