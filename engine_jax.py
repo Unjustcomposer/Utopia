@@ -8,6 +8,11 @@ execution on CPU/GPU without Python overhead.
 from typing import Tuple
 import jax
 import jax.numpy as jnp
+import os
+
+# Enable persistent XLA compilation cache
+os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
+jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
 
 from config import SimulationConfig
 from state import AgentState, FirmState, MacroState, SimState

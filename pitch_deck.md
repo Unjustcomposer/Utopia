@@ -1,10 +1,7 @@
 # NexusAI: Seed Round Pitch Deck (Prepared for Sequoia Capital)
 
 ## The Problem
-Macroeconomic policy and quantitative trading rely on outdated simulation models. Traditional Agent-Based Models (ABMs) like AnyLogic and Simudyne are:
-- **Slow:** Rely on brute-force parameter sweeps (Monte Carlo).
-- **Intractable:** Cannot handle high-dimensional optimization.
-- **Black-box:** Non-differentiable, preventing the use of modern machine learning techniques for policy discovery.
+Global retailers face an impossible challenge: macro shocks (tariffs, oil spikes, pandemics) destroy margins overnight. Existing tools like SAP or Oracle can tell you what inventory you *have*, but they cannot simulate what inventory you *need* when a 20% tariff hits your primary supplier. Competitors like AnyLogic require Ph.D. consultants and take months to run brute-force sweeps.
 
 ## The Solution: Differentiable Macroeconomic Graph Engine
 NexusAI is the first fully differentiable macroeconomic simulator. By treating the economy as a continuous computational graph, we unlock gradient-based optimization. 

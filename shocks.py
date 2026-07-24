@@ -30,6 +30,23 @@ def apply_supply_chain_disruption(state: SimState, cost_multiplier: float = 1.2)
     new_firms = state.firms._replace(input_cost_multiplier=new_input_cost)
     return state._replace(firms=new_firms)
 
+def apply_physical_telematics_shock(state: SimState, cost_multiplier: float) -> SimState:
+    """
+    Applies a physical telematics shock (e.g., weather, port congestion) 
+    derived from the PhysicalShockCompiler.
+    """
+    # Physical shocks spike input costs and severely disrupt production capacity
+    new_input_cost = state.firms.input_cost_multiplier * cost_multiplier
+    # A 1.5x cost multiplier implies a 50% drop in capacity due to logistics failures
+    capacity_penalty = 1.0 / cost_multiplier 
+    new_capacity = state.firms.production_capacity * capacity_penalty
+    
+    new_firms = state.firms._replace(
+        input_cost_multiplier=new_input_cost,
+        production_capacity=new_capacity
+    )
+    return state._replace(firms=new_firms)
+
 def apply_technology_breakthrough(state: SimState, productivity_boost: float = 1.3) -> SimState:
     """Increases production capacity and quality for all active firms."""
     new_capacity = state.firms.production_capacity * productivity_boost

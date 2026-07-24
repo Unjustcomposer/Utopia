@@ -7,7 +7,14 @@ Now integrated with Ray for distributed simulation.
 """
 import math
 import uvicorn
+import uuid
+import os
+import jax
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File
+
+# Enable persistent XLA compilation cache
+os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
+jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,17 +26,23 @@ from sqlalchemy.orm import Session
 from auth import get_current_user, User
 from database import get_db, SimulationResult
 from rate_limit import limiter
+from data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
 from config import SimulationConfig
-from simulation import Simulation
 from experiment import Experiment
 from scenario import create_scenario
 from search import StrategySearch, firm_profit_objective, total_welfare_objective, price_stability_objective
 from dashboard_ui import DASHBOARD_HTML
 
 app = FastAPI(title="NexusAI Engine API", description="Agent-Based Economic Simulator")
+
+from prometheus_client import make_asgi_app, Counter, Histogram
+app.mount("/metrics", make_asgi_app())
+
+SIMULATION_COUNTER = Counter("nexusai_simulations_total", "Total number of simulations run", ["type"])
+SIMULATION_DURATION = Histogram("nexusai_simulation_duration_seconds", "Duration of simulations")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -78,14 +91,16 @@ class RunRequest(BaseModel):
     ticks: int = 120
     use_us_calibration: bool = False
     seed: int = 42
+    scenario: str = "baseline"
 
-def _ray_run_simulation(config, seed):
-    sim = Simulation(config=config, seed=seed)
-    return sim.run()
+def _ray_run_simulation(config, seed, scenario="baseline"):
+    from simulation_jax import run_simulation
+    # We use the new JAX engine directly
+    return run_simulation(config=config, seed=seed, scenario=scenario)
 
 @app.post("/api/run")
 @limiter.limit("10/minute")
-async def handle_api_run(
+def handle_api_run(
     request: Request,
     req: RunRequest,
     user: User = Depends(get_current_user),
@@ -98,9 +113,14 @@ async def handle_api_run(
             num_firms=req.firms,
             num_goods=req.goods,
             num_ticks=req.ticks,
-            use_us_calibration=req.use_us_calibration
+            use_us_calibration=req.use_us_calibration,
+            firm_behavior_mode=2 # Use Heuristic for stability
         )
-        result = await _ray_run_simulation(config, req.seed)
+        
+        with SIMULATION_DURATION.time():
+            result = _ray_run_simulation(config, req.seed, req.scenario)
+            
+        SIMULATION_COUNTER.labels(type="run").inc()
         
         response = {
             "metrics_history": result.metrics_history,
@@ -138,7 +158,7 @@ def _ray_run_experiment(config, scenario, seeds, base_seed):
 
 @app.post("/api/experiment")
 @limiter.limit("5/minute")
-async def handle_api_experiment(
+def handle_api_experiment(
     request: Request,
     req: ExperimentRequest,
     user: User = Depends(get_current_user),
@@ -154,7 +174,11 @@ async def handle_api_experiment(
             use_us_calibration=req.use_us_calibration
         )
         scenario = create_scenario(req.scenario_type, **req.scenario_params)
-        result = await _ray_run_experiment(config, scenario, req.seeds, req.seed)
+        
+        with SIMULATION_DURATION.time():
+            result = _ray_run_experiment(config, scenario, req.seeds, req.seed)
+            
+        SIMULATION_COUNTER.labels(type="experiment").inc()
         
         avg_control = [{k: float(v) for k, v in tick.items()} for tick in result.avg_control_metrics]
         avg_treatment = [{k: float(v) for k, v in tick.items()} for tick in result.avg_treatment_metrics]
@@ -225,7 +249,7 @@ def _ray_run_search(config, scenario_factory, param_space, objective, method, se
 
 @app.post("/api/search")
 @limiter.limit("2/minute")
-async def handle_api_search(
+def handle_api_search(
     request: Request,
     req: SearchRequest,
     user: User = Depends(get_current_user),
@@ -276,10 +300,13 @@ async def handle_api_search(
         else:
             objective = total_welfare_objective()
 
-        result = await _ray_run_search(
-            config, scenario_factory, param_space, objective, req.method,
-            req.seeds_per_eval, req.validation_seeds, req.top_k
-        )
+        with SIMULATION_DURATION.time():
+            result = _ray_run_search(
+                config, scenario_factory, param_space, objective, req.method,
+                req.seeds_per_eval, req.validation_seeds, req.top_k
+            )
+            
+        SIMULATION_COUNTER.labels(type="search").inc()
         
         candidates = []
         for c in result.candidates[:20]:
@@ -347,7 +374,7 @@ def _ray_run_sensitivity(config, param_space, objective_name, samples, seed):
 
 @app.post("/api/sensitivity")
 @limiter.limit("2/minute")
-async def handle_api_sensitivity(
+def handle_api_sensitivity(
     request: Request,
     req: SensitivityRequest,
     user: User = Depends(get_current_user),
@@ -372,9 +399,12 @@ async def handle_api_sensitivity(
             "matching_efficiency": (0.2, 0.8),
         }
         
-        Si = await _ray_run_sensitivity(
-            config, param_space, req.objective, req.samples, req.seed
-        )
+        with SIMULATION_DURATION.time():
+            Si = _ray_run_sensitivity(
+                config, param_space, req.objective, req.samples, req.seed
+            )
+            
+        SIMULATION_COUNTER.labels(type="sensitivity").inc()
         
         results = []
         for i, name in enumerate(param_space.keys()):
@@ -427,7 +457,7 @@ def _ray_run_calibration(config, targets, param_space, trials, seed):
 
 @app.post("/api/calibrate")
 @limiter.limit("2/minute")
-async def handle_api_calibrate(
+def handle_api_calibrate(
     request: Request,
     req: CalibrateRequest,
     user: User = Depends(get_current_user),
@@ -443,9 +473,12 @@ async def handle_api_calibrate(
             num_ticks=req.ticks
         )
         
-        best_params, best_mse = await _ray_run_calibration(
-            config, req.targets, req.param_space, req.trials, req.seed
-        )
+        with SIMULATION_DURATION.time():
+            best_params, best_mse = _ray_run_calibration(
+                config, req.targets, req.param_space, req.trials, req.seed
+            )
+            
+        SIMULATION_COUNTER.labels(type="calibrate").inc()
         
         response = {"best_params": best_params, "best_mse": best_mse}
         
@@ -477,7 +510,7 @@ def _ray_run_gradient_search(config, iters, seed):
 
 @app.post("/api/grad-search")
 @limiter.limit("2/minute")
-async def handle_api_grad_search(
+def handle_api_grad_search(
     request: Request,
     req: GradSearchRequest,
     user: User = Depends(get_current_user),
@@ -491,7 +524,11 @@ async def handle_api_grad_search(
             num_goods=req.goods,
             num_ticks=req.ticks
         )
-        result = await _ray_run_gradient_search(config, req.iters, req.seed)
+        
+        with SIMULATION_DURATION.time():
+            result = _ray_run_gradient_search(config, req.iters, req.seed)
+            
+        SIMULATION_COUNTER.labels(type="grad-search").inc()
         
         db_result = SimulationResult(
             tenant_id=user.tenant_id,
@@ -509,7 +546,7 @@ async def handle_api_grad_search(
 
 @app.post("/api/agents/ingest")
 @limiter.limit("10/minute")
-async def ingest_agents_csv(
+def ingest_agents_csv(
     request: Request,
     file: UploadFile = File(...),
     user: User = Depends(get_current_user)
@@ -528,6 +565,68 @@ async def ingest_agents_csv(
         logger.error(f"Error in ingest: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/ingest_global_baseline")
+def ingest_global_baseline():
+    """
+    Triggers the alternative data ingestion pipeline (Credit Cards, Satellite, Shipping)
+    to compile a real-world snapshot into JAX tensors and run the simulation from that baseline.
+    """
+    try:
+        logger.info("Triggering Global Baseline Compilation...")
+        config = SimulationConfig()
+        compiler = GlobalBaselineCompiler(config)
+        overrides = compiler.compile_baseline()
+        
+        logger.info("Baseline compiled successfully. Initiating JAX Simulation with overrides.")
+        result = run_simulation(config=config, seed=42, scenario="baseline", baseline_state_overrides=overrides)
+        
+        # Optionally save to DB here...
+        
+        return {
+            "status": "success", 
+            "message": "Global baseline ingested and simulated successfully.",
+            "metrics": result.summary()
+        }
+    except Exception as e:
+        logger.error(f"Error in global baseline ingestion: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ExplainRequest(BaseModel):
+    demand_history: List[float] = [10.0, 11.0, 10.5]
+    profit_history: List[float] = [100.0, 105.0, 102.0]
+    price_history: List[float] = [10.0, 10.0, 10.0]
+    macro_price_history: List[float] = [10.0, 10.1, 10.2]
+    macro_rate_history: List[float] = [0.05, 0.05, 0.05]
+
+@app.post("/api/explain")
+@limiter.limit("10/minute")
+def handle_api_explain(
+    request: Request,
+    req: ExplainRequest,
+    user: User = Depends(get_current_user)
+):
+    try:
+        from lmm_explain import explain_firm_policy
+        from lmm_model import get_initial_lmm_params
+        import jax
+        import jax.numpy as jnp
+        
+        # Load weights (for now we use initial weights, in a real system we'd load the trained checkpoint)
+        params = get_initial_lmm_params(jax.random.PRNGKey(42))
+        
+        lmm_inputs = jnp.stack([
+            jnp.array(req.demand_history),
+            jnp.array(req.profit_history),
+            jnp.array(req.price_history),
+            jnp.array(req.macro_price_history),
+            jnp.array(req.macro_rate_history)
+        ], axis=-1)
+        
+        explanations = explain_firm_policy(params, lmm_inputs)
+        return sanitize_for_json(explanations)
+    except Exception as e:
+        logger.error(f"Error in explain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import sys
