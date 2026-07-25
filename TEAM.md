@@ -4,12 +4,6 @@ NexusAI is built by a team of researchers and engineers with deep expertise in m
 
 ## Founders
 
-### Dr. Elena Rostova – Co-Founder & CEO
-Elena holds a Ph.D. in Computational Economics from MIT, where her research focused on applying gradient-based optimization to large-scale agent-based models. Prior to founding NexusAI, she spent 4 years at DeepMind working on reinforcement learning for complex system simulations. Elena leads our overall strategy and algorithmic research.
-
-### James Chen – Co-Founder & CTO
-James brings over a decade of enterprise software experience, having served as a Lead SAP Architect at a Fortune 50 logistics firm. He possesses deep domain knowledge in ERP systems, supply chain telematics, and high-performance computing infrastructure. James drives the engineering execution and JAX/XLA architecture of the NexusAI engine.
-
 ### Omsingh Bais – Co-Founder
 Omsingh plays a critical role in the strategic direction and execution of NexusAI, bringing deep expertise in technology leadership and product vision.
 
