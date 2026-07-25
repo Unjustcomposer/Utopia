@@ -14,7 +14,7 @@ from config import SimulationConfig
 from state import SimState
 
 def apply_interest_rate_hike(state: SimState, hike_amount: float = 0.02) -> SimState:
-    """Increases the central bank base rate."""
+    """Increases the macro base rate."""
     new_macro = state.macro._replace(base_rate=state.macro.base_rate + hike_amount)
     return state._replace(macro=new_macro)
 

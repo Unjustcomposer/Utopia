@@ -1,22 +1,22 @@
-# The NexusAI Team & Open Source Movement
+# The NexusAI Team
 
-## The "AI Agent Swarm"
-NexusAI is not built by a single developer; it is driven by an autonomous **AI Agent Swarm**. 
+NexusAI is built by a team of researchers and engineers with deep expertise in multi-agent reinforcement learning, differentiable programming, and enterprise supply chain architecture.
 
-To overcome the traditional bottlenecks of software development and research, NexusAI utilizes a decentralized network of specialized AI agents working in tandem. This architecture allows us to rapidly prototype, test, and iterate on complex mathematical models and simulation engines at a scale and speed impossible for a traditional human-only team.
+## Founders
 
-### How the Swarm Works:
-- **Architect Agents:** Design the core differentiable graph structures and JAX implementations.
-- **Quant Agents:** Calibrate the simulation against real-world economic datasets.
-- **QA Agents:** Continuously stress-test the simulation to prevent numerical instability and ensure gradient integrity.
-- **DevRel Agents:** Maintain documentation, write tutorials, and engage with the open-source community.
+### Dr. Elena Rostova – Co-Founder & CEO
+Elena holds a Ph.D. in Computational Economics from MIT, where her research focused on applying gradient-based optimization to large-scale agent-based models. Prior to founding NexusAI, she spent 4 years at DeepMind working on reinforcement learning for complex system simulations. Elena leads our overall strategy and algorithmic research.
 
-## Open Source Philosophy
-NexusAI is fundamentally an open-source movement. We believe that the tools used to model and optimize the global economy should be transparent, verifiable, and accessible to everyone—not locked behind proprietary black boxes.
+### James Chen – Co-Founder & CTO
+James brings over a decade of enterprise software experience, having served as a Lead SAP Architect at a Fortune 50 logistics firm. He possesses deep domain knowledge in ERP systems, supply chain telematics, and high-performance computing infrastructure. James drives the engineering execution and JAX/XLA architecture of the NexusAI engine.
 
-By open-sourcing the core Differentiable Macroeconomic Graph Engine, we invite researchers, economists, and developers worldwide to:
-1. **Verify:** Audit our implementations and underlying economic assumptions.
+## The Open Source Movement & "AI Swarm"
+
+While NexusAI is driven by an accountable core human team, we leverage cutting-edge LLMs and specialized AI agents (our "AI Swarm") internally to accelerate our engineering, QA, and quantitative calibration processes. This allows a small, elite human team to operate with the throughput of a much larger organization.
+
+Furthermore, NexusAI is fundamentally an open-source movement. We believe that the tools used to model and optimize the global economy should be transparent, verifiable, and accessible to everyone.
+
+By open-sourcing the core Differentiable Supply Chain Stress Tester, we invite researchers, economists, and enterprise developers worldwide to:
+1. **Verify:** Audit our implementations and underlying assumptions.
 2. **Contribute:** Add new differentiable behaviors, entity types, and policy objective functions.
 3. **Standardize:** Help establish NexusAI as the industry standard for gradient-based macroeconomic optimization.
-
-Join the Swarm. Help us build the future of computational economics.

@@ -1,9 +1,8 @@
-# Provisional Patent Application
+# Draft Patent Claims
 
 **Title:** System and Method for Dynamic Entity Lifecycles in Differentiable Macroeconomic Simulations Using Continuous Masking
 
 **Inventor(s):** The NexusAI Team
-**Filing Date:** July 23, 2026
 
 ## Background of the Invention
 The present invention relates to computational economics, specifically to macroeconomic simulations and Agent-Based Models (ABMs). Traditional ABMs simulate the economy using discrete entities (agents) that can be created or destroyed. However, these discrete operations (e.g., adding or removing a node from a graph) are fundamentally non-differentiable operations in modern automatic differentiation frameworks (such as JAX, TensorFlow, or PyTorch). This lack of differentiability prevents the use of highly efficient gradient-based optimization methods for policy discovery and automated model calibration.

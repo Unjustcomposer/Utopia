@@ -121,7 +121,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     quality = jax.random.uniform(subkey, (config.num_firms,), minval=0.8, maxval=1.2)
     
     production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
-    num_employees = jnp.zeros(config.num_firms, dtype=jnp.int32)
+    num_employees = jnp.zeros(config.num_firms, dtype=jnp.float32)
     wage_offer = jnp.full(config.num_firms, config.base_wage_min)
     debt = jnp.zeros(config.num_firms)
     cumulative_revenue = jnp.zeros(config.num_firms)
@@ -134,7 +134,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     
     input_cost_multiplier = jnp.ones(config.num_firms)
     
-    is_active = jnp.ones(config.num_firms, dtype=jnp.bool_)
+    is_active = jnp.ones(config.num_firms, dtype=jnp.float32)
     capital_goods = jnp.ones(config.num_firms) * 10.0
     equity = cash + inventory * price + capital_goods * config.capital_cost - debt
     

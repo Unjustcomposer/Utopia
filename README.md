@@ -2,7 +2,7 @@
 
 NexusAI is an enterprise-grade predictive engine designed to optimize supply chain logistics against macroeconomic shocks (tariffs, oil spikes, pandemics). It features native integrations with SAP S/4HANA and Oracle NetSuite.
 
-*Built by an autonomous AI Agent Swarm. See our [Open Source Movement & Team](TEAM.md).*
+*See our [Open Source Movement & Team](TEAM.md).*
 
 > **⚠️ Every result produced by this simulator is a statement about the
 > simulation's internal dynamics — never a prediction about a real company,

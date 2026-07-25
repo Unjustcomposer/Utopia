@@ -75,7 +75,7 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     def count_employees(firm_id):
         return jnp.sum(new_employer_id == firm_id)
     
-    new_num_employees = jax.vmap(count_employees)(jnp.arange(firms.cash.shape[0]))
+    new_num_employees = jax.vmap(count_employees)(jnp.arange(firms.cash.shape[0])).astype(jnp.float32)
     
     # Pay vacancy cost
     total_vacancy_cost = vacancies * config.vacancy_cost

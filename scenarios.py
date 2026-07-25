@@ -22,7 +22,7 @@ def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multipl
             shocks[20:, 2] = 1.2 * telematics_multiplier
             
     elif scenario_name == "rate_hike":
-        # At tick 10, central bank raises rates by 500 bps
+        # At tick 10, macro rates increase by 500 bps
         if num_ticks > 10:
             shocks[10:, 0] = 0.05
             

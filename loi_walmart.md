@@ -1,5 +1,5 @@
+# [HYPOTHETICAL TEMPLATE - NO AFFILIATION WITH WALMART]
 # Letter of Intent
-
 **Date:** July 24, 2026
 **To:** The Founders, NexusAI Inc.
 **From:** Office of the Chief Supply Chain Officer, Walmart Inc.

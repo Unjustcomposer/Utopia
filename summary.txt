@@ -1,0 +1,348 @@
+
+
+--- engine_jax.py ---
+"""
+JAX Core Engine
+===============
+Pure functional implementation of the simulation tick logic.
+This module is fully compilable by XLA (via @jax.jit) allowing
+execution on CPU/GPU without Python overhead.
+"""
+from typing import Tuple
+import jax
+import jax.numpy as jnp
+import os
+
+# Enable persistent XLA compilation cache
+os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
+jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
+
+from config import SimulationConfig
+from state import AgentState, FirmState, MacroState, SimState
+from lmm_model import FirmTransformer
+
+
+from engine.credit import _credit_market_step
+from engine.production import _production_step, _wage_payment_step
+from engine.government import _government_step
+from e
+
+--- simulation_jax.py ---
+"""
+JAX Simulation Orchestrator
+===========================
+Wraps the pure functional JAX engine with the legacy Simulation API interface.
+"""
+
+import jax
+import jax.numpy as jnp
+from functools import partial
+from typing import Any, Dict, List, Optional
+import numpy as np
+
+from config import SimulationConfig
+from state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState
+from engine_jax import simulation_step
+from lmm_model import get_initial_lmm_params
+
+import dataclasses
+
+@dataclasses.dataclass
+class SimulationResult:
+    seed: int
+    config: SimulationConfig
+    scenario_description: str
+    metrics_history: List[Dict[str, Any]]
+    final_firms: List[Dict[str, Any]]
+    
+    def summary(self) -> Dict[str, Any]:
+        if not self.metrics_history:
+  
+
+--- lmm_model.py ---
+import jax
+import jax.numpy as jnp
+import flax.linen as nn
+
+class TransformerBlock(nn.Module):
+    dim: int
+    num_heads: int
+    mlp_ratio: float = 4.0
+
+    @nn.compact
+    def __call__(self, x):
+        # LayerNorm 1
+        x_ln1 = nn.LayerNorm()(x)
+        
+        # Multi-Head Attention
+        # Since seq_len is very small (e.g. 3 ticks of history), we just use standard attention
+        attn = nn.MultiHeadDotProductAttention(num_heads=self.num_heads)(x_ln1, x_ln1)
+        x = x + attn
+        
+        # LayerNorm 2
+        x_ln2 = nn.LayerNorm()(x)
+        
+        # MLP
+        hidden_dim = int(self.dim * self.mlp_ratio)
+        mlp = nn.Dense(hidden_dim)(x_ln2)
+        mlp = nn.gelu(mlp)
+        mlp = nn.Dense(self.dim)(mlp)
+        
+        x = x + mlp
+        return x
+
+class Fi
+
+--- train_rl.py ---
+import jax
+import jax.numpy as jnp
+import optax
+from config import SimulationConfig
+from simulation_jax import _run_scan, init_sim_state
+from state import SimState
+from scenarios import generate_shock_matrix
+
+def macroeconomic_objective(lmm_params, initial_state: SimState, config: SimulationConfig):
+    """
+    Runs the simulation and computes the macroeconomic loss.
+    This is the core of the Large Macroeconomic Model (LMM).
+    """
+    # Bind the LMM parameters into the initial state
+    state = initial_state._replace(lmm_params=lmm_params)
+    
+    # Generate baseline shocks matrix
+    shocks_matrix = jnp.array(generate_shock_matrix(config.num_ticks, "baseline"))
+    
+    # Run the simulation
+    final_state, stacked_metrics = _run_scan(state, config.num_ticks, config, shocks_matrix)
+ 
+
+--- test_sfc.py ---
+import jax
+import jax.numpy as jnp
+from config import SimulationConfig
+from simulation_jax import init_sim_state
+from engine_jax import (
+    _credit_market_step,
+    _production_step,
+    _wage_payment_step,
+    _government_step,
+    _housing_step,
+    _foreign_trade_step,
+    _social_network_step,
+    _market_clear_step,
+    _labor_market_step,
+    _firm_adjustment_step,
+    _demographics_step,
+    _firm_lifecycle_step
+)
+
+def calc_net_money(s):
+    return jnp.sum(s.agents.budget) + jnp.sum(s.agents.savings) + jnp.sum(s.firms.cash) + s.gov.cash + s.macro.bank_equity - s.macro.loans
+
+def test_sfc_constraint():
+    # Set foreign_demand_base=0.0 to test a strictly CLOSED economy. 
+    # Otherwise trade surpluses inject money into the system.
+    config = SimulationConfig(
+        num_ticks=1
+
+--- tests/test_engine.py ---
+import jax
+import jax.numpy as jnp
+import pytest
+
+from config import SimulationConfig
+from simulation_jax import init_sim_state
+from engine_jax import simulation_step
+
+def test_sfc_balance_closed_economy():
+    """Verify that money is neither created nor destroyed in a closed economy."""
+    config = SimulationConfig(
+        num_agents=100,
+        num_firms=10,
+        num_goods=2,
+        num_ticks=2,
+        firm_behavior_mode=2,  # Heuristic mode
+        foreign_demand_base=0.0 # Force a closed economy for exact SFC testing
+    )
+    
+    # Initialize state
+    state = init_sim_state(config, seed=42)
+    
+    # Calculate initial money supply
+    def calc_net_money(s):
+        total_agent_money = jnp.sum(s.agents.budget) + jnp.sum(s.agents.savings)
+        total_firm_money = jnp.sum(s.
+
+--- aamas_paper.md ---
+# Differentiable Macroeconomic Graph Engine: Multi-Agent Reinforcement Learning with PPO
+
+## Abstract
+Traditional Agent-Based Models (ABMs) have long suffered from the curse of dimensionality, rendering them intractable for high-dimensional policy optimization and sensitivity analysis. We introduce NexusAI, a novel Differentiable Macroeconomic Graph Engine that formulates economic systems as continuous, differentiable computational graphs. By leveraging Proximal Policy Optimization (PPO) in a multi-agent reinforcement learning (MARL) setting, NexusAI enables exact gradient calculations and robust policy discovery. This paradigm shift transitions economic modeling from slow, brute-force simulation sweeps to rapid, gradient-based MARL optimization, allowing for real-time policy discovery, au
+
+--- benchmark_gradients.py ---
+import time
+import jax
+import jax.numpy as jnp
+from config import SimulationConfig
+from simulation_jax import init_sim_state, _run_scan
+
+def run_benchmark():
+    """
+    Benchmarks JAX automatic differentiation (gradients) against Monte Carlo grid search.
+    We optimize the Central Bank `base_rate` to maximize economic output (inventory).
+    """
+    print("Initializing Gradient Benchmark...")
+    config = SimulationConfig(
+        num_ticks=20, 
+        num_agents=200, 
+        num_firms=20,
+        firm_behavior_mode=2 # Heuristic mode, which is fully differentiable
+    )
+    
+    # We must isolate the base_rate as a continuous input to the JAX graph.
+    initial_state = init_sim_state(config, seed=42)
+    
+    # ── Objective Function ──
+    @jax.jit
+    def gdp_objective(rate):
+       
+
+--- backtest_2008.py ---
+import jax
+import jax.numpy as jnp
+from config import SimulationConfig
+from simulation_jax import init_sim_state
+from engine_jax import simulation_step
+from shocks import apply_demand_shock, apply_supply_chain_disruption
+
+def run_2008_backtest():
+    """
+    Runs a historical validation backtest replicating the 2008 Financial Crisis.
+    We inject a massive DemandShock (panic savings) and SupplyDisruption (credit freeze)
+    at tick 10, then measure the maximum drawdown in GDP and peak unemployment.
+    """
+    print("Initializing 2008 Historical Backtest...")
+    # Scale up agents/firms for better statistical significance
+    config = SimulationConfig(
+        num_ticks=50, 
+        num_agents=1000, 
+        num_firms=100, 
+        use_us_calibration=True,
+        firm_behavior_mode=2 # U
+
+--- us_calibration.py ---
+"""
+US Macroeconomic Calibration Module
+===================================
+Provides sampling functions to initialize the agent-based simulation with 
+realistic United States demographics (Age, Region) and correlated wealth/wage 
+distributions to model the actual US economy.
+
+Vectorized for AgentPopulation architecture.
+"""
+
+import numpy as np
+from typing import Dict, Any, Tuple
+
+# US Census Regions (approximate population weights)
+REGIONS = ["Northeast", "Midwest", "South", "West"]
+REGION_WEIGHTS = [0.17, 0.21, 0.38, 0.24]
+
+# US Age Groups (approximate adult population weights)
+AGE_GROUPS = ["18-25", "26-35", "36-50", "51-65", "65+"]
+AGE_WEIGHTS = [0.12, 0.17, 0.25, 0.23, 0.23]
+
+# Cost of Living (COL) Multiplier by Region (Northeast/West are higher)
+REGION_COL = {
+    "Northeast": 1.15,
+ 
+
+--- erp_connectors.py ---
+"""
+NexusAI ERP Integrations
+========================
+Native connectors for SAP S/4HANA and Oracle NetSuite.
+Extracts real-time supply chain data to bootstrap the NexusAI Digital Twin.
+"""
+
+import json
+import logging
+import time
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from typing import Dict, Any, List
+
+from audit_logger import SecureAuditLogger
+
+logger = logging.getLogger(__name__)
+
+# Global SOC2 Audit Logger
+audit_logger = SecureAuditLogger()
+
+class SAP_ERP_Client:
+    """Production client for SAP S/4HANA OData API."""
+    def __init__(self, 
+                 endpoint_url: str = "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_MATERIAL_STOCK_SRV", 
+                 client_id: str = "mock_client_id", 
+                 cl
+
+--- telematics_connectors.py ---
+import json
+import logging
+import random
+import requests
+from typing import Dict, Any, Tuple
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logger = logging.getLogger(__name__)
+
+class NOAA_Weather_Client:
+    """Production client for NOAA / OpenWeatherMap probabilistic severe weather APIs."""
+    
+    def __init__(self, api_key: str = "mock_noaa_key"):
+        self.api_key = api_key
+        # In a real environment, this connects to the NOAA NHC (National Hurricane Center) API
+        self.endpoint_url = "https://api.weather.gov/alerts/active"
+        
+        self.session = requests.Session()
+        retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+        self.session.mount("https://", HTTPAdapter(max_retries=retries))
+    
+
+--- TEAM.md ---
+# The NexusAI Team & Open Source Movement
+
+## The "AI Agent Swarm"
+NexusAI is not built by a single developer; it is driven by an autonomous **AI Agent Swarm**. 
+
+To overcome the traditional bottlenecks of software development and research, NexusAI utilizes a decentralized network of specialized AI agents working in tandem. This architecture allows us to rapidly prototype, test, and iterate on complex mathematical models and simulation engines at a scale and speed impossible for a traditional human-only team.
+
+### How the Swarm Works:
+- **Architect Agents:** Design the core differentiable graph structures and JAX implementations.
+- **Quant Agents:** Calibrate the simulation against real-world economic datasets.
+- **QA Agents:** Continuously stress-test the simulation to prevent numerical i
+
+--- pitch_deck.md ---
+# NexusAI: Seed Round Pitch Deck (Prepared for Sequoia Capital)
+
+## The Problem
+Global retailers face an impossible challenge: macro shocks (tariffs, oil spikes, pandemics) destroy margins overnight. Existing tools like SAP or Oracle can tell you what inventory you *have*, but they cannot simulate what inventory you *need* when a 20% tariff hits your primary supplier. Competitors like AnyLogic require Ph.D. consultants and take months to run brute-force sweeps.
+
+## The Solution: Differentiable Macroeconomic Graph Engine
+NexusAI is the first fully differentiable macroeconomic simulator. By treating the economy as a continuous computational graph, we unlock gradient-based optimization. 
+
+### Why Gradient-Based Optimization?
+- **Speed:** 1,000x faster calibration and optimization compared to 
+
+--- soc2_controls.md ---
+# NexusAI SOC2 Type II Architecture & Controls
+
+To support enterprise deployment of the NexusAI Global Autonomous Supply Chain Router within Fortune 500 ERP environments (SAP S/4HANA, Oracle NetSuite), the platform adheres to strict SOC2 Type II Trust Services Criteria (Security, Availability, Processing Integrity, Confidentiality).
+
+## 1. Security & Access Control
+- **Role-Based Access Control (RBAC):** All read and write operations to the ERP require dedicated API service accounts restricted via OAuth 2.0 Client Credentials with minimal scope (e.g., `MaterialStock.Read`, `PurchaseOrder.Write`).
+- **Human-In-The-Loop (HITL) Fallback:** The engine can operate in "Advisory Mode" where autonomous Purchase Orders are staged in the ERP but require final human approval.
+- **Authentication:** Al

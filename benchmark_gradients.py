@@ -7,7 +7,7 @@ from simulation_jax import init_sim_state, _run_scan
 def run_benchmark():
     """
     Benchmarks JAX automatic differentiation (gradients) against Monte Carlo grid search.
-    We optimize the Central Bank `base_rate` to maximize economic output (inventory).
+    We optimize the macro `base_rate` to maximize economic output (inventory).
     """
     print("Initializing Gradient Benchmark...")
     config = SimulationConfig(
