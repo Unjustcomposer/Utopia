@@ -1,5 +1,7 @@
 import jax
 import jax.numpy as jnp
+import os
+import pandas as pd
 from config import SimulationConfig
 from simulation_jax import init_sim_state
 from engine_jax import simulation_step
@@ -62,14 +64,33 @@ def run_2008_backtest():
     unemp_spike_pct = (max_unemp - baseline_unemp) * 100 # percentage points
     
     print(f"Baseline GDP: {baseline_gdp:.2f} | Trough GDP: {min_gdp:.2f}")
-    print(f"Simulated GDP Drop:        {gdp_drop_pct:.2f}%")
-    print(f"Actual 2008 GDP Drop:      4.30%")
-    print(f"-> Error:                  {abs(gdp_drop_pct - 4.30):.2f}%\n")
-    
-    print(f"Baseline Unemployment: {baseline_unemp*100:.2f}% | Peak Unemployment: {max_unemp*100:.2f}%")
-    print(f"Simulated Unemp. Spike:    {unemp_spike_pct:.2f}% (points)")
-    print(f"Actual 2008 Unemp. Spike:  5.00% (from ~5% to 10%)")
-    print(f"-> Error:                  {abs(unemp_spike_pct - 5.0):.2f}%")
-
+    # ── Empirical Validation ──
+    try:
+        data_path = os.path.join(os.path.dirname(__file__), "data", "fred_2008_macro.csv")
+        df = pd.read_csv(data_path)
+        
+        # Calculate empirical baselines
+        pre_crisis = df[df["Quarter"].str.contains("2007")]
+        post_crisis = df[df["Quarter"].str.contains("2008|2009|2010")]
+        
+        actual_baseline_gdp = pre_crisis["RealGDP_Billions"].mean()
+        actual_trough_gdp = post_crisis["RealGDP_Billions"].min()
+        actual_gdp_drop = ((actual_baseline_gdp - actual_trough_gdp) / actual_baseline_gdp) * 100
+        
+        actual_baseline_unemp = pre_crisis["UnemploymentRate"].mean()
+        actual_peak_unemp = post_crisis["UnemploymentRate"].max()
+        actual_unemp_spike = (actual_peak_unemp - actual_baseline_unemp)
+        
+        print("\n=== Empirical Validation (FRED Data) ===")
+        print(f"Simulated GDP Drop:        {gdp_drop_pct:.2f}%")
+        print(f"Actual 2008 GDP Drop:      {actual_gdp_drop:.2f}%")
+        print(f"-> Error:                  {abs(gdp_drop_pct - actual_gdp_drop):.2f}%\n")
+        
+        print(f"Simulated Unemp. Spike:    {unemp_spike_pct:.2f}% (points)")
+        print(f"Actual 2008 Unemp. Spike:  {actual_unemp_spike:.2f}% (from {actual_baseline_unemp:.2f}% to {actual_peak_unemp:.2f}%)")
+        print(f"-> Error:                  {abs(unemp_spike_pct - actual_unemp_spike):.2f}%")
+    except Exception as e:
+        print(f"\nWarning: Could not load empirical data for validation. Error: {e}")
+        
 if __name__ == "__main__":
     run_2008_backtest()

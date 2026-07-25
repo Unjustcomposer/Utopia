@@ -40,7 +40,7 @@ class FirmState(NamedTuple):
     price: jnp.ndarray            # (num_firms,)
     quality: jnp.ndarray          # (num_firms,)
     production_capacity: jnp.ndarray # (num_firms,)
-    num_employees: jnp.ndarray    # (num_firms,) int
+    num_employees: jnp.ndarray    # (num_firms,) float
     wage_offer: jnp.ndarray       # (num_firms,)
     debt: jnp.ndarray             # (num_firms,)
     cumulative_revenue: jnp.ndarray # (num_firms,)
@@ -55,7 +55,7 @@ class FirmState(NamedTuple):
     input_cost_multiplier: jnp.ndarray # (num_firms,)
     
     # Module 1 & 3 expansions
-    is_active: jnp.ndarray        # (num_firms,) boolean
+    is_active: jnp.ndarray        # (num_firms,) float
     capital_goods: jnp.ndarray    # (num_firms,) float
     equity: jnp.ndarray           # (num_firms,) float (SFC accounting)
     region_id: jnp.ndarray        # (num_firms,) int

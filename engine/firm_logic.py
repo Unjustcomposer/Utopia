@@ -82,34 +82,43 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     
     equity = firms.cash + firms.inventory * firms.price + firms.capital_goods * config.capital_cost - firms.debt
     
-    bankrupt = (equity < config.bankruptcy_threshold) & firms.is_active
+    # Differentiable bankruptcy gating
+    temperature = 10.0
+    survival_prob = jax.nn.sigmoid((equity - config.bankruptcy_threshold) * temperature)
     
-    bad_debt = jnp.where(bankrupt, firms.debt - firms.cash, 0.0)
-    bad_debt = jnp.maximum(0.0, bad_debt)
-    new_macro_loans = macro.loans - jnp.sum(jnp.where(bankrupt, firms.debt, 0.0))
+    # Maintain continuous activity mask (1.0 = fully active, 0.0 = fully dead)
+    new_is_active = firms.is_active * survival_prob
+    bankrupt_mask = firms.is_active * (1.0 - survival_prob)
+    
+    bad_debt = bankrupt_mask * jnp.maximum(0.0, firms.debt - firms.cash)
+    new_macro_loans = macro.loans - jnp.sum(bankrupt_mask * firms.debt)
     new_bank_equity = macro.bank_equity - jnp.sum(bad_debt)
     
-    new_is_active = jnp.where(bankrupt, False, firms.is_active)
-    new_cash = jnp.where(bankrupt, 0.0, firms.cash)
-    new_debt = jnp.where(bankrupt, 0.0, firms.debt)
-    new_inventory = jnp.where(bankrupt, 0.0, firms.inventory)
-    new_employees = jnp.where(bankrupt, 0, firms.num_employees)
-    new_capital = jnp.where(bankrupt, 0.0, firms.capital_goods)
+    # Scale down states continuously
+    new_cash = firms.cash * survival_prob
+    new_debt = firms.debt * survival_prob
+    new_inventory = firms.inventory * survival_prob
+    new_employees = firms.num_employees * survival_prob
+    new_capital = firms.capital_goods * survival_prob
     
     # Entry
     key, subkey = jax.random.split(key)
-    enters = (jax.random.uniform(subkey, firms.is_active.shape) < config.firm_entry_probability) & ~new_is_active
+    # Using continuous logic: if inactive, probability of entry increases mask
+    entry_prob = jax.random.uniform(subkey, firms.is_active.shape)
+    enters_mask = jax.nn.sigmoid((config.firm_entry_probability - entry_prob) * 100.0) * (1.0 - new_is_active)
     
-    new_is_active = jnp.where(enters, True, new_is_active)
-    new_cash = jnp.where(enters, config.initial_firm_cash_min, new_cash)
-    new_capital = jnp.where(enters, 10.0, new_capital)
-    new_price = jnp.where(enters, (config.base_price_min + config.base_price_max)/2, firms.price)
-    new_debt = jnp.where(enters, config.initial_firm_cash_min, new_debt)
-    new_macro_loans = new_macro_loans + jnp.sum(jnp.where(enters, new_debt, 0.0))
+    new_is_active = new_is_active + enters_mask
+    new_cash = new_cash + enters_mask * config.initial_firm_cash_min
+    new_capital = new_capital + enters_mask * 10.0
+    new_price = new_price * (1.0 - enters_mask) + enters_mask * ((config.base_price_min + config.base_price_max)/2)
+    new_debt = new_debt + enters_mask * config.initial_firm_cash_min
+    new_macro_loans = new_macro_loans + jnp.sum(enters_mask * config.initial_firm_cash_min)
     
     # Layoff employees of bankrupt firms
     def update_agent(emp, emp_id):
-        is_bankrupt_firm = bankrupt[emp_id] & (emp_id >= 0)
+        # We need to broadcast the firm bankrupt_mask to the agent
+        # If employer bankrupt_mask > 0.5, layoff
+        is_bankrupt_firm = (emp_id >= 0) & (bankrupt_mask[jnp.maximum(0, emp_id)] > 0.5)
         return jnp.where(is_bankrupt_firm, False, emp), jnp.where(is_bankrupt_firm, -1, emp_id)
         
     new_employed, new_employer_id = jax.vmap(update_agent)(agents.employed, agents.employer_id)

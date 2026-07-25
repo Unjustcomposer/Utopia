@@ -11,35 +11,44 @@ Vectorized for AgentPopulation architecture.
 import numpy as np
 from typing import Dict, Any, Tuple
 
-# US Census Regions (approximate population weights)
-REGIONS = ["Northeast", "Midwest", "South", "West"]
-REGION_WEIGHTS = [0.17, 0.21, 0.38, 0.24]
+import os
+import pandas as pd
 
-# US Age Groups (approximate adult population weights)
-AGE_GROUPS = ["18-25", "26-35", "36-50", "51-65", "65+"]
-AGE_WEIGHTS = [0.12, 0.17, 0.25, 0.23, 0.23]
-
-# Cost of Living (COL) Multiplier by Region (Northeast/West are higher)
-REGION_COL = {
-    "Northeast": 1.15,
-    "Midwest": 0.90,
-    "South": 0.95,
-    "West": 1.15
-}
-
-# Wealth Multiplier by Age (wealth accumulates with age)
-AGE_WEALTH_MULT = {
-    "18-25": 0.3,
-    "26-35": 0.6,
-    "36-50": 1.2,
-    "51-65": 1.8,
-    "65+": 1.5
-}
+# Load empirical data
+DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "us_demographics.csv")
+try:
+    _df = pd.read_csv(DATA_PATH)
+    REGIONS = _df["Region"].unique().tolist()
+    AGE_GROUPS = _df["AgeGroup"].unique().tolist()
+    
+    # Precompute probability weights for combinations
+    _pop_weights = _df["PopulationWeight"].values
+    _pop_weights = _pop_weights / np.sum(_pop_weights)
+    
+    # Maps for median wealth and mean wage
+    _wealth_map = {}
+    _wage_map = {}
+    for _, row in _df.iterrows():
+        key = (row["Region"], row["AgeGroup"])
+        _wealth_map[key] = row["MedianWealth"]
+        _wage_map[key] = row["MeanWage"]
+except Exception as e:
+    # Fallback for CI/CD if file missing
+    print(f"Warning: Could not load {DATA_PATH}, using fallback. Error: {e}")
+    REGIONS = ["Northeast", "Midwest", "South", "West"]
+    AGE_GROUPS = ["18-25", "26-35", "36-50", "51-65", "65+"]
+    _pop_weights = np.ones(20) / 20.0
+    _df = None
 
 def sample_demographics(rng: np.random.Generator, n: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Sample n demographic pairs (region, age_group) using vectorization."""
-    regions = rng.choice(REGIONS, size=n, p=REGION_WEIGHTS)
-    ages = rng.choice(AGE_GROUPS, size=n, p=AGE_WEIGHTS)
+    """Sample n demographic pairs (region, age_group) using empirical combinations."""
+    if _df is not None:
+        indices = rng.choice(len(_df), size=n, p=_pop_weights)
+        regions = _df["Region"].values[indices]
+        ages = _df["AgeGroup"].values[indices]
+    else:
+        regions = rng.choice(REGIONS, size=n)
+        ages = rng.choice(AGE_GROUPS, size=n)
     return regions, ages
 
 def sample_agent_financials(
@@ -62,24 +71,26 @@ def sample_agent_financials(
     """
     n = len(regions)
     
-    col_mult = np.zeros(n)
-    for r, mult in REGION_COL.items():
-        col_mult[regions == r] = mult
-        
-    age_mult = np.zeros(n)
-    for a, mult in AGE_WEALTH_MULT.items():
-        age_mult[ages == a] = mult
+    target_mean_wealth = np.zeros(n)
+    target_mean_wage = np.zeros(n)
+    
+    if _df is not None:
+        for i in range(n):
+            key = (regions[i], ages[i])
+            target_mean_wealth[i] = _wealth_map.get(key, base_budget)
+            target_mean_wage[i] = _wage_map.get(key, base_wage)
+    else:
+        target_mean_wealth = np.full(n, base_budget)
+        target_mean_wage = np.full(n, base_wage)
         
     # Lognormal parameters for wealth (budget)
     sigma_wealth = kwargs.get("sigma_wealth", 0.8)
-    target_mean_wealth = base_budget * col_mult * age_mult
-    mu_wealth = np.log(target_mean_wealth) - (sigma_wealth**2 / 2)
+    mu_wealth = np.log(target_mean_wealth + 1e-6) - (sigma_wealth**2 / 2)
     budgets = rng.lognormal(mu_wealth, sigma_wealth)
     
     # Lognormal parameters for expected wage
     sigma_wage = kwargs.get("sigma_wage", 0.5)
-    target_mean_wage = base_wage * col_mult
-    mu_wage = np.log(target_mean_wage) - (sigma_wage**2 / 2)
+    mu_wage = np.log(target_mean_wage + 1e-6) - (sigma_wage**2 / 2)
     expected_wages = rng.lognormal(mu_wage, sigma_wage)
     
     # Savings rate

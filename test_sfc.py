@@ -49,19 +49,26 @@ def test_sfc_constraint():
     m0 = calc_net_money(state)
     old_cum_cost = state.firms.cumulative_cost
     
-    for name, step_fn, needs_cum_cost in steps:
-        if needs_cum_cost:
-            state = step_fn(state, config, old_cum_cost)
-        else:
-            state = step_fn(state, config)
-            
-        m1 = calc_net_money(state)
-        delta = jnp.abs(m1 - m0)
-        print(f"{name:<15} Delta: {delta:.5f} | M: {m1:.5f}")
-        if delta > 1.0: # Float32 accumulation tolerance
-            print(f"!!! SFC Violation in {name} !!!")
-            break
-        m0 = m1
+    print("Running 1000 ticks for strict Stock-Flow Consistency test...")
+    max_delta = 0.0
+    for tick in range(1000):
+        for name, step_fn, needs_cum_cost in steps:
+            if needs_cum_cost:
+                state = step_fn(state, config, old_cum_cost)
+            else:
+                state = step_fn(state, config)
+                
+            m1 = calc_net_money(state)
+            delta = jnp.abs(m1 - m0)
+            if delta > max_delta:
+                max_delta = delta
+            if delta > 5.0: # Float32 accumulation tolerance over many ticks
+                print(f"!!! SFC Violation in tick {tick}, step {name} !!!")
+                print(f"Delta: {delta:.5f} | M: {m1:.5f}")
+                assert False, f"SFC broken at tick {tick}"
+            m0 = m1
+            old_cum_cost = state.firms.cumulative_cost
+    print(f"Passed 1000 ticks. Max money delta across steps: {max_delta:.5f}")
 
 if __name__ == "__main__":
     test_sfc_constraint()

@@ -12,7 +12,7 @@ def test_sfc_balance_closed_economy():
         num_agents=100,
         num_firms=10,
         num_goods=2,
-        num_ticks=2,
+        num_ticks=500,
         firm_behavior_mode=2,  # Heuristic mode
         foreign_demand_base=0.0 # Force a closed economy for exact SFC testing
     )
@@ -31,13 +31,14 @@ def test_sfc_balance_closed_economy():
         
     initial_money = calc_net_money(state)
     
-    # Run a tick
-    new_state = simulation_step(state, config)
+    # Run 500 ticks
+    for _ in range(500):
+        state = simulation_step(state, config)
     
-    final_money = calc_net_money(new_state)
+    final_money = calc_net_money(state)
     
     delta = final_money - initial_money
-    assert jnp.abs(delta) < 1.0, f"SFC Leak Detected! Initial: {initial_money}, Final: {final_money}, Delta: {delta}"
+    assert jnp.abs(delta) < 5.0, f"SFC Leak Detected! Initial: {initial_money}, Final: {final_money}, Delta: {delta}"
     
 def test_engine_no_nans():
     """Ensure the engine does not produce NaNs after a full run."""
