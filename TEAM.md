@@ -10,6 +10,12 @@ Elena holds a Ph.D. in Computational Economics from MIT, where her research focu
 ### James Chen – Co-Founder & CTO
 James brings over a decade of enterprise software experience, having served as a Lead SAP Architect at a Fortune 50 logistics firm. He possesses deep domain knowledge in ERP systems, supply chain telematics, and high-performance computing infrastructure. James drives the engineering execution and JAX/XLA architecture of the NexusAI engine.
 
+### Omsingh Bais – Co-Founder
+Omsingh plays a critical role in the strategic direction and execution of NexusAI, bringing deep expertise in technology leadership and product vision.
+
+### Harshit Khandelwal – Co-Founder
+Harshit is a key driver of the NexusAI platform, instrumental in architecting the core systems and leading technical innovation across the stack.
+
 ## The Open Source Movement & "AI Swarm"
 
 While NexusAI is driven by an accountable core human team, we leverage cutting-edge LLMs and specialized AI agents (our "AI Swarm") internally to accelerate our engineering, QA, and quantitative calibration processes. This allows a small, elite human team to operate with the throughput of a much larger organization.
