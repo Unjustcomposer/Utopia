@@ -28,7 +28,13 @@ class SimulationResult:
     def summary(self) -> Dict[str, Any]:
         if not self.metrics_history:
             return {}
-        return self.metrics_history[-1]
+        n = len(self.metrics_history)
+        return {
+            "mean_gini": sum(m.get("gini_coefficient", 0.0) for m in self.metrics_history) / n,
+            "mean_unemployment": sum(m.get("unemployment_rate", 0.0) for m in self.metrics_history) / n,
+            "mean_price_index": sum(m.get("price_index", 0.0) for m in self.metrics_history) / n,
+            "mean_welfare": sum(m.get("total_welfare", 0.0) for m in self.metrics_history) / n,
+        }
 
 def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None) -> SimState:
     """Initializes the JAX PyTree state."""
@@ -262,9 +268,9 @@ class JAXSimulation:
             metrics_history.append({
                 "tick": i,
                 "price_index": float(stacked_metrics["price_index"][i]),
-                "employment_rate": float(stacked_metrics["employment_rate"][i]),
+                "unemployment_rate": 1.0 - float(stacked_metrics["employment_rate"][i]),
                 "total_output": float(stacked_metrics["total_output"][i]),
-                "gini": float(stacked_metrics["gini"][i]),
+                "gini_coefficient": float(stacked_metrics["gini"][i]),
                 "total_welfare": float(stacked_metrics["total_welfare"][i]),
             })
             

@@ -110,7 +110,7 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     new_is_active = new_is_active + enters_mask
     new_cash = new_cash + enters_mask * config.initial_firm_cash_min
     new_capital = new_capital + enters_mask * 10.0
-    new_price = new_price * (1.0 - enters_mask) + enters_mask * ((config.base_price_min + config.base_price_max)/2)
+    new_price = firms.price * (1.0 - enters_mask) + enters_mask * ((config.base_price_min + config.base_price_max)/2)
     new_debt = new_debt + enters_mask * config.initial_firm_cash_min
     new_macro_loans = new_macro_loans + jnp.sum(enters_mask * config.initial_firm_cash_min)
     
