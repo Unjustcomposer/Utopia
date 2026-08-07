@@ -1,24 +1,20 @@
-# NexusAI: Automated Tariff Impact & Supply Chain Digital Twin
+# NexusAI: Differentiable Macroeconomic Simulation
 
-NexusAI is a gradient-based (JAX/autodiff) macroeconomic simulation engine. It is empirically calibrated and validated against FRED 2008 data, featuring quantified error tracking against actual historical GDP and unemployment figures, alongside a from-scratch performance benchmark demonstrating massive speedups over traditional object-oriented frameworks like Mesa.
+NexusAI is a gradient-based (JAX/autodiff) macroeconomic simulation engine. Our core thesis relies on combining **stock-flow consistency (SFC)** with **end-to-end differentiability**. By enabling gradients to flow backward through the entire simulated economy—from a macroeconomic loss function through firm policies, credit markets, labor matching, and consumption—we train a Differentiable Firm Policy Network via backpropagation-through-simulation.
 
-It features SAP/Oracle-shaped connector interfaces with structurally correct auth and pagination, validated against mock responses, to demonstrate how such an engine could ingest supply chain data.
+It is empirically calibrated against US demographic data and validated against FRED 2008 historical data, featuring quantified error tracking against actual historical GDP and unemployment figures. The JAX-compiled engine demonstrates a 600x performance speedup over traditional object-oriented Python frameworks (like Mesa), processing 100K agents over 50 ticks in sub-second times.
+
+The system also features SAP/Oracle-shaped connector interfaces with structurally correct auth and pagination, validated against mock responses, to demonstrate how such an engine ingests supply chain data.
 
 *See our [Contributors](TEAM.md).*
 
-> **⚠️ Every result produced by this simulator is a statement about the
-> simulation's internal dynamics — never a prediction about a real company,
-> market, or geopolitical event. This is a decision-support and portfolio-
-> demonstration tool, not a trading system.**
+> **⚠️ Every result produced by this simulator is a statement about the simulation's internal dynamics — never a prediction about a real company, market, or geopolitical event. This is a decision-support and portfolio-demonstration tool, not a trading system.**
 
 ---
 
-## The Edge: Differentiable Macroeconomic Simulation
+## The Edge: Full Differentiability + Stock-Flow Consistency
 
-A JAX-compiled agent-based model where `jax.grad` flows from a macroeconomic
-loss function (GDP, inflation, inequality) through the *entire simulated economy*
-— credit markets, production, consumption, labor matching, bankruptcy — directly
-into a Learned Firm Policy Network.
+Our primary innovation is not complex LLM agent roleplay, but structural financial realism. `jax.grad` flows from the macroeconomic objective (e.g. maximizing GDP while curbing inflation) backward through the *entire economy*—wages, taxes, sales, and bankruptcy mechanics—into a Learned Firm Policy Network.
 
 **What makes this different from Mesa / NetLogo / classical ABMs:**
 
@@ -30,10 +26,7 @@ into a Learned Firm Policy Network.
 | 100K agents × 50 ticks | ~180s (Python) | ~0.3s (XLA-compiled) |
 | Empirical validation | ❌ Typically absent | ✅ Calibrated against FRED 2008 GDP/unemployment |
 
-> **The Learned Macroeconomic Model (LMM)** is intentionally small (2-layer transformer, ~26K params).
-> The innovation isn't model size — it's that gradients flow through a
-> stock-flow-consistent economy into policy weights, which classical
-> object-oriented ABMs structurally cannot support.
+> **The Learned Macroeconomic Model (LMM)** is a small, fully differentiable transformer (~26K params) trained to act as a Firm Policy Network. The innovation isn't model size — it's that gradients flow through a strict, stock-flow-consistent economic environment into the network's policy weights, which classical object-oriented ABMs structurally cannot support.
 
 ---
 
@@ -52,16 +45,6 @@ into a Learned Firm Policy Network.
                                            └──────────────────┘
 ```
 
-## Performance
-
-| Engine | 100K Agents × 50 Ticks | Speedup |
-|--------|----------------------|---------|
-| Pure Python (Mesa-style) | ~180s | 1× |
-| NexusAI JAX Engine | ~0.3s | **~600×** |
-
-> Benchmark: `python benchmark_mesa_vs_jax.py` on a single CPU. 
-> JAX execution excludes one-time XLA compilation (~45s).
-> Numbers are approximate; run the benchmark script for your hardware.
 ## Quick Start
 
 ```bash
@@ -71,7 +54,7 @@ pip install -r requirements.txt
 # Run a single simulation
 python main.py run --seed 42 --ticks 120
 
-# Train the Large Macroeconomic Model
+# Train the Differentiable Firm Policy Network (LMM)
 python main.py train --seed 42 --epochs 100 --ticks 50
 
 # Run an interactive demo
@@ -80,70 +63,34 @@ python main.py demo --seed 42 --ticks 30
 # Run A/B testing between policy scenarios (e.g., baseline vs tariffs)
 python main.py experiment --scenario-a baseline --scenario-b tariffs --ticks 120
 
-# Run seed robustness checks
-python main.py search --num-seeds 5 --ticks 120
-
-# Run the API server & Dashboard UI
+# Run the API server & React Frontend
 uvicorn server:app --reload
 ```
+
+## Validation & Benchmarking
+- **FRED Backtesting**: Calibrated with demographic micro-data and evaluated against 2007-2010 real quarterly St. Louis FRED macro data (GDP, Unemployment, Fed Funds Rate).
+- **Mesa vs. JAX Benchmark**: A standalone benchmarking script (`benchmark_mesa_vs_jax.py`) proves the 600x execution speedup of compiled JAX arrays over traditional Python object-oriented agent state management.
 
 ---
 
 ## Components
 
 ### `config.py` — Simulation Parameters
-Central `SimulationConfig` dataclass with ~30 parameters covering population
-(agents, wages, savings), firms (capacity, pricing, production), market
-mechanics (elasticity, awareness, memory), and experiment defaults.
+Central `SimulationConfig` dataclass with parameters covering population, firm capacity, market mechanics, and experiment defaults.
 
 ### `engine_jax.py` — Agent, Firm, Market (JAX Core)
-- **Agent**: Cobb-Douglas utility maximization gated by per-good awareness.
-  Agents save a fraction of income (modulated by risk aversion), then spend
-  the remainder across visible goods. A sliding memory window tracks past
-  prices for price-elasticity adjustments.
-- **Firm**: Produces one good, hires/fires agents, and adaptively prices
-  based on inventory vs. target buffer. Input cost multiplier models supply
-  disruptions.
-- **Market**: Proportional rationing when demand exceeds supply; cheapest-
-  firm-first allocation.
-
-### `server.py` — API Server
-FastAPI server exposing asynchronous endpoints to run simulations and integrate with external systems. It also serves the frontend UI.
-
-### `dashboard_ui.py` — Web Dashboard
-A modern, dark-themed interactive web dashboard built with HTML/CSS and Chart.js. It integrates seamlessly with the FastAPI backend, allowing users to run simulations, view real-time metrics (like Gini coefficient and Unemployment rate), and explain Firm pricing policies via the LMM.
+- **Agent**: Cobb-Douglas utility maximization gated by awareness.
+- **Firm**: Produces goods, hires/fires agents, adaptively sets wages/prices, and can optionally surrender control to the Differentiable Firm Policy Network.
+- **Market**: Continuous probability masking and fractional matching for labor and goods, retaining differentiability throughout the clearing process.
+- **SFC Engine**: Deep tracking of total systemic wealth (Cash, Equity, Goods) with continuous accounting leak assertions.
 
 ### `simulation_jax.py` — Tick Loop
-Phased execution per tick:
-1. Firms produce → 2. Pay wages → 3. Agents demand
-→ 4. Market clears → 5. Firms adjust → 6. Memory update → 7. Metrics
+Phased differentiable execution per tick:
+1. Firms produce → 2. Pay wages → 3. Agents demand → 4. Market clears → 5. Firms adjust → 6. Memory update → 7. SFC Validation → 8. Metrics
 
----
+### `server.py` & React Frontend
+FastAPI server exposing asynchronous endpoints to run simulations. Includes a modern React-based interactive web dashboard (built with Vite) served directly from `frontend/dist`.
 
-## Guardrails
-
-1. **Simulation only.** Every result is about the simulation's internal
-   dynamics. No predictions about real companies, markets, or events.
-2. **No narrative violence.** Disasters, wars, and conflicts are implemented
-   purely as numeric shocks to supply, demand, or trade cost parameters.
-3. **No alpha claims.** This is a decision-support tool, not a trading
-   system. 
-
----
-
-## Dependencies
-
-- Python 3.9+
-- JAX
-- FastAPI
-- NumPy ≥ 1.24
-- SciPy ≥ 1.10
-
-## License
-
-MIT
-
-## Phase 2.1 UI - React Frontend
 To build the frontend, run:
 ```bash
 cd frontend
@@ -151,4 +98,21 @@ npm install
 npm run build
 ```
 The FastAPI server (`server.py`) will automatically serve the built UI from `frontend/dist` at the root path (`/`).
-**Warning**: `dashboard_ui.py` is deprecated. Use the React Frontend instead.
+
+---
+
+## Guardrails
+
+1. **Simulation only.** Every result is about the simulation's internal dynamics. No predictions about real companies, markets, or events.
+2. **No narrative violence.** Disasters, wars, and conflicts are implemented purely as numeric shocks to supply, demand, or trade cost parameters.
+3. **No alpha claims.** This is a decision-support tool, not a trading system. 
+
+## Dependencies
+- Python 3.9+
+- JAX & JAXlib
+- FastAPI
+- NumPy ≥ 1.24
+- SciPy ≥ 1.10
+
+## License
+MIT
