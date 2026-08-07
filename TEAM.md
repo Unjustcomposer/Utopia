@@ -1,22 +1,21 @@
-# The NexusAI Team
+# Contributors & Team
 
-NexusAI is built by a team of researchers and engineers with deep expertise in multi-agent reinforcement learning, differentiable programming, and enterprise supply chain architecture.
+NexusAI is an open-source research project focused on gradient-based macroeconomic simulation. 
 
-## Founders
+## Core Contributors
 
-### Omsingh Bais – Co-Founder
-Omsingh plays a critical role in the strategic direction and execution of NexusAI, bringing deep expertise in technology leadership and product vision.
+**Omsingh Bais**  
+*Code Contributor & Engineer*  
+Omsingh has contributed significantly to the codebase, including work on the underlying simulation mechanics and connector infrastructure.
 
-### Harshit Khandelwal – Co-Founder
+**Harshit Khandelwal**  
+*Code Contributor & Engineer*  
 Harshit is a key driver of the NexusAI platform, instrumental in architecting the core systems and leading technical innovation across the stack.
 
-## The Open Source Movement & "AI Swarm"
+## Open Source Philosophy
 
-While NexusAI is driven by an accountable core human team, we leverage cutting-edge LLMs and specialized AI agents (our "AI Swarm") internally to accelerate our engineering, QA, and quantitative calibration processes. This allows a small, elite human team to operate with the throughput of a much larger organization.
+We believe that the tools used to model the global economy should be transparent, verifiable, and accessible to everyone. By open-sourcing this Differentiable Macroeconomic Graph Engine, we invite researchers, economists, and developers to:
 
-Furthermore, NexusAI is fundamentally an open-source movement. We believe that the tools used to model and optimize the global economy should be transparent, verifiable, and accessible to everyone.
-
-By open-sourcing the core Differentiable Supply Chain Stress Tester, we invite researchers, economists, and enterprise developers worldwide to:
-1. **Verify:** Audit our implementations and underlying assumptions.
+1. **Verify:** Audit our JAX implementations and underlying economic assumptions.
 2. **Contribute:** Add new differentiable behaviors, entity types, and policy objective functions.
-3. **Standardize:** Help establish NexusAI as the industry standard for gradient-based macroeconomic optimization.
+3. **Experiment:** Utilize the engine's auto-diff capabilities to run gradient-based policy optimizations.

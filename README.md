@@ -1,8 +1,10 @@
 # NexusAI: Automated Tariff Impact & Supply Chain Digital Twin
 
-NexusAI is an enterprise-grade predictive engine designed to optimize supply chain logistics against macroeconomic shocks (tariffs, oil spikes, pandemics). It features native integrations with SAP S/4HANA and Oracle NetSuite.
+NexusAI is a gradient-based (JAX/autodiff) macroeconomic simulation engine. It is empirically calibrated and validated against FRED 2008 data, featuring quantified error tracking against actual historical GDP and unemployment figures, alongside a from-scratch performance benchmark demonstrating massive speedups over traditional object-oriented frameworks like Mesa.
 
-*See our [Open Source Movement & Team](TEAM.md).*
+It features SAP/Oracle-shaped connector interfaces with structurally correct auth and pagination, validated against mock responses, to demonstrate how such an engine could ingest supply chain data.
+
+*See our [Contributors](TEAM.md).*
 
 > **⚠️ Every result produced by this simulator is a statement about the
 > simulation's internal dynamics — never a prediction about a real company,
