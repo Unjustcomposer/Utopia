@@ -116,12 +116,13 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     
     # Layoff employees of bankrupt firms
     def update_agent(emp, emp_id):
-        # We need to broadcast the firm bankrupt_mask to the agent
-        # If employer bankrupt_mask > 0.5, layoff
-        is_bankrupt_firm = (emp_id >= 0) & (bankrupt_mask[jnp.maximum(0, emp_id)] > 0.5)
-        return jnp.where(is_bankrupt_firm, False, emp), jnp.where(is_bankrupt_firm, -1, emp_id)
+        # Soft layoff: reduce effective employment probability based on firm bankruptcy
+        firm_bankrupt_weight = jnp.where(emp_id >= 0, bankrupt_mask[jnp.maximum(0, emp_id)], 0.0)
+        layoff_prob = firm_bankrupt_weight
+        new_emp = emp * (1.0 - layoff_prob)
+        return new_emp, emp_id
         
-    new_employed, new_employer_id = jax.vmap(update_agent)(agents.employed, agents.employer_id)
+    new_employed, new_employer_id = jax.vmap(update_agent)(agents.employed.astype(jnp.float32), agents.employer_id)
     new_agents = agents._replace(employed=new_employed, employer_id=new_employer_id)
     
     new_firms = firms._replace(

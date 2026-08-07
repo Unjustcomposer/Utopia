@@ -31,8 +31,15 @@ class TransformerBlock(nn.Module):
 
 class FirmTransformer(nn.Module):
     """
-    A Mini-LMM (Large Macroeconomic Model) embedded within the JAX simulation.
-    Processes historical firm state and macroeconomic state to output continuous policy actions.
+    Learned Macroeconomic Model (LMM): A compact differentiable transformer
+    embedded within the JAX simulation loop. Unlike LLM-based agent systems,
+    this network is trained via backpropagation *through the simulated economy*
+    — gradients flow from a macroeconomic loss (GDP, inflation) backward through
+    market clearing, production, and employment into these policy weights.
+    
+    Architecture: 2-layer encoder, 4 heads, dim=64 (~26K parameters).
+    The small size is intentional: the learning signal comes from economic
+    dynamics, not from a text corpus.
     """
     dim: int = 64
     depth: int = 2
@@ -82,3 +89,7 @@ def get_initial_lmm_params(key):
     dummy_input = jnp.zeros((1, 3, 5))
     variables = model.init(key, dummy_input)
     return variables['params']
+
+def count_lmm_params(params) -> int:
+    """Returns total parameter count of the LMM."""
+    return sum(x.size for x in jax.tree.leaves(params))

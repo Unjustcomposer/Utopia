@@ -46,6 +46,10 @@ def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50):
     initial_state = init_sim_state(config, seed)
     lmm_params = initial_state.lmm_params
     
+    from lmm_model import count_lmm_params
+    param_count = count_lmm_params(lmm_params)
+    print(f"LMM Policy Network instantiated with {param_count:,} parameters.")
+    
     # Optax optimizer
     tx = optax.adam(learning_rate=1e-3)
     opt_state = tx.init(lmm_params)

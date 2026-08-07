@@ -48,13 +48,13 @@ def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     # Since agent employer_id maps to firm indices, we can gather wage_offer
     # But wait, agents already have `agent.wage` assigned during hiring!
     # So we just add agent.wage to their budget.
-    earned_wages = jnp.where(agents.employed & agents.is_alive, agents.wage, 0.0)
+    earned_wages = agents.employed * agents.is_alive.astype(jnp.float32) * agents.wage
     
     # Progressive Taxation
     tax = jnp.where(earned_wages > config.income_tax_bracket_threshold,
                     (earned_wages - config.income_tax_bracket_threshold) * config.income_tax_rate_top + config.income_tax_bracket_threshold * config.income_tax_rate_base,
                     earned_wages * config.income_tax_rate_base)
-    tax = jnp.where(agents.employed & agents.is_alive, tax, 0.0)
+    tax = tax * agents.employed * agents.is_alive.astype(jnp.float32)
     
     net_wages = earned_wages - tax
     new_budget = agents.budget + net_wages

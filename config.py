@@ -129,6 +129,9 @@ class SimulationConfig:
 
     # ── Parallelism ─────────────────────────────────────────────────────
     max_workers: Optional[int] = None  # None → os.cpu_count()
+    
+    # ── Diagnostics ─────────────────────────────────────────────────────
+    sfc_tolerance: float = 1e-2  # Stock-Flow Consistency error tolerance in dollars
 
     def copy(self, **overrides) -> "SimulationConfig":
         """Return a shallow copy with selected fields overridden."""

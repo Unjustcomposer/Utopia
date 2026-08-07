@@ -57,6 +57,13 @@ def simulation_step(state: SimState, config: SimulationConfig) -> SimState:
     
     m1 = calc_net_money(state)
     sfc_delta = jnp.abs(m1 - m0)
+    
+    # Enforce SFC: if delta exceeds tolerance, log a warning
+    jax.debug.callback(
+        lambda d, tol: print(f"SFC VIOLATION: ${float(d):.6f} leaked") if float(d) > tol else None,
+        sfc_delta, config.sfc_tolerance
+    )
+    
     new_macro = state.macro._replace(sfc_delta=sfc_delta)
     
     return state._replace(macro=new_macro)

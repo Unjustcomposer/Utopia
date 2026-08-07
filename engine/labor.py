@@ -8,7 +8,7 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     agents, firms, key = state.agents, state.firms, state.rng_key
     
     # Number of unemployed
-    unemployed_mask = ~agents.employed
+    unemployed_mask = 1.0 - agents.employed
     U = jnp.sum(unemployed_mask)
     
     # Vacancies
@@ -33,7 +33,7 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     
     # Which agents get hired
     will_hire = jax.random.uniform(subkey, agents.employed.shape) < hire_prob
-    newly_hired_mask = will_hire & unemployed_mask
+    newly_hired_mask = unemployed_mask * will_hire.astype(jnp.float32)
     
     # Assign them to firms based on vacancy shares AND wage offers (differentiable attraction)
     key, subkey = jax.random.split(key)
@@ -53,8 +53,8 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     # We sample a firm ID for ALL agents, but only apply it to newly_hired
     sampled_firm_ids = jax.random.choice(subkey, firms.cash.shape[0], shape=agents.employed.shape, p=firm_probs)
     
-    new_employed = agents.employed | newly_hired_mask
-    new_employer_id = jnp.where(newly_hired_mask, sampled_firm_ids, agents.employer_id)
+    new_employed = jnp.maximum(agents.employed, newly_hired_mask)
+    new_employer_id = jnp.where(newly_hired_mask > 0.5, sampled_firm_ids, agents.employer_id)
     
     # Nash Bargaining (Vectorized across firms)
     firm_res_wages = firms.price * config.productivity_per_worker
@@ -65,11 +65,17 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     negotiated_wages = beta * firm_res_wages + (1 - beta) * agent_res_wage
     negotiated_wages = jnp.maximum(negotiated_wages, config.minimum_wage)
     
-    # Update firm wage_offer
-    new_wage_offer = negotiated_wages
+    # Update firm wage_offer (only override if not using LMM)
+    mode = config.firm_behavior_mode
+    new_wage_offer = jnp.where(mode == 0, firms.wage_offer, negotiated_wages)
+    
+    # Re-calculate agent wages with the correct wage offers
+    match_mask = jnp.arange(firms.cash.shape[0])[jnp.newaxis, :] == new_employer_id[:, jnp.newaxis]
+    wage_matrix = jnp.where(match_mask, new_wage_offer[jnp.newaxis, :], 0.0)
+    agent_wages = jnp.max(wage_matrix, axis=1) * new_employed
     
     # Set agent wages
-    new_agent_wages = jnp.where(newly_hired_mask, new_wage_offer[sampled_firm_ids], agents.wage)
+    new_agent_wages = jnp.where(new_employed > 0.5, agent_wages, agents.wage)
     
     # Update firm employee counts
     def count_employees(firm_id):
