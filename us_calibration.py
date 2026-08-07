@@ -12,7 +12,22 @@ import numpy as np
 from typing import Dict, Any, Tuple
 
 import os
+import json
 import pandas as pd
+from config import SimulationConfig, CalibrationProfile
+
+def load_calibration_profile(name: str) -> dict:
+    """Load a calibration profile from a JSON file."""
+    profile_path = os.path.join(os.path.dirname(__file__), "data", "calibration_profiles", f"{name}.json")
+    with open(profile_path, 'r') as f:
+        data = json.load(f)
+    return data
+
+def config_from_calibration(profile_name: str) -> SimulationConfig:
+    data = load_calibration_profile(profile_name)
+    profile = CalibrationProfile(**data)
+    return SimulationConfig.from_profile(profile)
+
 
 # Load empirical data
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "us_demographics.csv")

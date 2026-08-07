@@ -85,3 +85,73 @@ def validate_policy_safety(gradients_dict: Dict[str, Any], max_gradient_magnitud
             
     return True # Safe
 
+def generate_executive_explanation(params: Any, lmm_inputs: jnp.ndarray, vertical: str = "supply_chain") -> Dict[str, Any]:
+    raw_explanations = explain_firm_policy(params, lmm_inputs)
+    is_safe = validate_policy_safety(raw_explanations)
+    
+    from explanation_templates import FEATURE_NAMES, OUTPUT_NAMES, SUPPLY_CHAIN_TEMPLATES, INSURANCE_TEMPLATES, POLICY_TEMPLATES
+    
+    if vertical == "supply_chain":
+        templates = SUPPLY_CHAIN_TEMPLATES
+    elif vertical == "insurance":
+        templates = INSURANCE_TEMPLATES
+    else:
+        templates = POLICY_TEMPLATES
+        
+    executive_explanations = {
+        "safety_status": "safe" if is_safe else "unsafe (circuit breaker triggered)",
+        "decisions": {}
+    }
+    
+    out_map = {"Delta Price": 0, "Delta Wage": 1, "Target Production": 2}
+    feature_name_to_idx = {
+        "Demand": 0, "Profit": 1, "Firm Price": 2, "Macro Price Index": 3, "Macro Interest Rate": 4
+    }
+    
+    for out_name, exp in raw_explanations.items():
+        out_idx = out_map[out_name]
+        out_meta = OUTPUT_NAMES[out_idx]
+        
+        attributions = exp["attributions"]
+        sorted_attrs = sorted(attributions.items(), key=lambda x: abs(x[1]), reverse=True)
+        top_3 = sorted_attrs[:3]
+        
+        top_drivers = []
+        for feat_name, grad in top_3:
+            feat_idx = feature_name_to_idx[feat_name]
+            feat_meta = FEATURE_NAMES[feat_idx]
+            direction = "positive" if grad > 0 else "negative"
+            top_drivers.append({
+                "name": feat_meta["name"],
+                "direction": direction,
+                "sensitivity": float(grad) * 100,
+            })
+            
+        primary_grad = exp["primary_driver_gradient"]
+        confidence = "high" if abs(primary_grad) > 0.5 else ("medium" if abs(primary_grad) > 0.1 else "low")
+        
+        action_word = out_meta["positive"] if primary_grad > 0 else out_meta["negative"]
+        magnitude = abs(primary_grad) * 10.0
+        
+        primary_driver = top_drivers[0]
+        primary_feat_idx = feature_name_to_idx[exp["primary_driver"]]
+        
+        rec_text = templates["recommendation"].format(action=action_word, magnitude=magnitude, unit=out_meta["unit"])
+        driver_text = templates["primary_driver"].format(
+            feature_name=primary_driver["name"],
+            description=FEATURE_NAMES[primary_feat_idx]["description"],
+            direction=primary_driver["direction"],
+            sensitivity=primary_driver["sensitivity"]
+        )
+        risk_text = templates["risk_if_ignored"].format(risk_scenario="suboptimal performance or supply chain imbalances")
+        narrative = f"{rec_text} {driver_text} {risk_text}"
+        
+        executive_explanations["decisions"][out_name] = {
+            "recommendation": f"{action_word.capitalize()} by {magnitude:.1f}{out_meta['unit']}",
+            "confidence": confidence,
+            "top_drivers": top_drivers,
+            "risk_if_ignored": risk_text,
+            "narrative": narrative
+        }
+        
+    return executive_explanations

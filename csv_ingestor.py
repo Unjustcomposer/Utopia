@@ -50,6 +50,33 @@ def ingest_historical_csv(filepath: str) -> Dict[str, jnp.ndarray]:
         logger.error(f"Error converting dataframe to JAX arrays: {e}")
         return {}
 
+def parse_usitc_tariff_csv(filepath: str) -> Dict[str, Any]:
+    """Parses USITC HTS CSV format to a tariff rates dictionary."""
+    logger.info(f"Parsing USITC tariff CSV from {filepath}")
+    tariff_rates = {}
+    try:
+        df = pd.read_csv(filepath)
+        if 'HTS8' in df.columns and 'Rate' in df.columns:
+            for _, row in df.iterrows():
+                tariff_rates[str(row['HTS8'])] = float(row['Rate'])
+    except Exception as e:
+        logger.error(f"Failed to parse USITC CSV: {e}")
+    return tariff_rates
+
+def parse_bls_qcew_csv(filepath: str) -> Dict[str, Any]:
+    """Parses BLS QCEW CSV to wage and employment data."""
+    logger.info(f"Parsing BLS QCEW CSV from {filepath}")
+    labor_data = {}
+    try:
+        df = pd.read_csv(filepath)
+        if 'avg_wkly_wage' in df.columns:
+            labor_data['avg_weekly_wage'] = float(df['avg_wkly_wage'].mean())
+        if 'month3_emplvl' in df.columns:
+            labor_data['total_employment'] = float(df['month3_emplvl'].sum())
+    except Exception as e:
+        logger.error(f"Failed to parse BLS QCEW CSV: {e}")
+    return labor_data
+
 if __name__ == "__main__":
     # Test stub
     # print(ingest_historical_csv("data/sample_inventory.csv"))

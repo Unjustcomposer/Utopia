@@ -43,6 +43,29 @@ def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multipl
             shocks[5:25, 1] = 0.30
             shocks[5:25, 2] = 1.5 * telematics_multiplier
             
+    elif scenario_name == "supply_chain_2021":
+        for t in range(num_ticks):
+            if t < 30:
+                progress = t / 30.0
+                shocks[t, 2] = (1.0 + 1.5 * progress) * telematics_multiplier
+                shocks[t, 1] = 0.0
+                shocks[t, 0] = 0.0
+            elif t < 60:
+                progress = (t - 30) / 30.0
+                shocks[t, 2] = (2.5 + 1.5 * progress) * telematics_multiplier
+                shocks[t, 1] = -0.02
+                shocks[t, 0] = 0.0
+            elif t < 90:
+                progress = (t - 60) / 30.0
+                shocks[t, 2] = (4.0 - 2.5 * progress) * telematics_multiplier
+                shocks[t, 1] = 0.04
+                shocks[t, 0] = 0.001
+            else:
+                progress = min(1.0, (t - 90) / 30.0)
+                shocks[t, 2] = (1.5 - 0.3 * progress) * telematics_multiplier
+                shocks[t, 1] = 0.0
+                shocks[t, 0] = 0.0025
+                
     return shocks
 
-SCENARIO_LIST = ["baseline", "tariff_shock", "rate_hike", "oil_shock", "recession", "pandemic"]
+SCENARIO_LIST = ["baseline", "tariff_shock", "rate_hike", "oil_shock", "recession", "pandemic", "supply_chain_2021"]

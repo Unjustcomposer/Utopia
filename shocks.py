@@ -56,3 +56,29 @@ def apply_technology_breakthrough(state: SimState, productivity_boost: float = 1
         quality=new_quality
     )
     return state._replace(firms=new_firms)
+
+def apply_port_congestion_shock(state: SimState, severity: float = 0.5) -> SimState:
+    """Reduces firm production_capacity proportionally."""
+    new_capacity = state.firms.production_capacity * (1.0 - severity)
+    new_firms = state.firms._replace(production_capacity=new_capacity)
+    return state._replace(firms=new_firms)
+
+def apply_freight_cost_shock(state: SimState, multiplier: float = 2.0) -> SimState:
+    """Scales input_cost_multiplier on all firms."""
+    new_input_cost = state.firms.input_cost_multiplier * multiplier
+    new_firms = state.firms._replace(input_cost_multiplier=new_input_cost)
+    return state._replace(firms=new_firms)
+
+def apply_labor_shortage_shock(state: SimState, severity: float = 0.1) -> SimState:
+    """Reduces available labor pool (by simulating early retirement/exit)."""
+    # Reduce labor pool by marking a portion of agents as inactive/dead
+    # Use the existing rng_key from state
+    key, subkey = jax.random.split(state.rng_key)
+    rand_vals = jax.random.uniform(subkey, state.agents.is_alive.shape)
+    new_is_alive = jnp.where(rand_vals < severity, False, state.agents.is_alive)
+    
+    # Increase wage expectations to simulate a higher minimum wage floor
+    new_wage = state.agents.wage * (1.0 + severity)
+    
+    new_agents = state.agents._replace(is_alive=new_is_alive, wage=new_wage)
+    return state._replace(agents=new_agents, rng_key=key)
