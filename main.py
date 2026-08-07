@@ -78,6 +78,23 @@ def cmd_search(args: argparse.Namespace) -> None:
     else:
         print("\n[ROBUSTNESS] No output generated.")
 
+def cmd_report(args: argparse.Namespace) -> None:
+    """Generate an executive PDF report for a simulation scenario."""
+    from report_generator import generate_pdf_report
+    
+    print(f"Running simulation for report: {args.scenario}, seed={args.seed}")
+    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
+    result = run_simulation(config=config, seed=args.seed, scenario=args.scenario)
+    
+    print("Generating PDF report...")
+    pdf_bytes = generate_pdf_report(result)
+    
+    out_filename = f"report_{args.scenario}_{args.seed}.pdf"
+    with open(out_filename, 'wb') as f:
+        f.write(pdf_bytes)
+        
+    print(f"Report successfully generated and saved to: {out_filename}")
+
 def main():
     parser = argparse.ArgumentParser(
         prog="NexusAI",
@@ -120,6 +137,14 @@ def main():
     p_search.add_argument("--seed", type=int, default=42)
     p_search.add_argument("--ticks", type=int, default=120)
     p_search.set_defaults(func=cmd_search)
+
+    # ── report ─────────────────────────────────────────────────────────
+    p_report = subparsers.add_parser("report", help="Generate an executive PDF report")
+    p_report.add_argument("--scenario", type=str, default="baseline")
+    p_report.add_argument("--seed", type=int, default=42)
+    p_report.add_argument("--ticks", type=int, default=120)
+    p_report.add_argument("--agents", type=int, default=1000)
+    p_report.set_defaults(func=cmd_report)
 
     args = parser.parse_args()
     if args.command is None:

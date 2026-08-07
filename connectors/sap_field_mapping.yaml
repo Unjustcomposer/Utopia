@@ -1,0 +1,20 @@
+material_master:
+  MARA-MATNR: "material_id"
+  MARC-EISBE: "inventory_buffer"
+  MARC-PLIFZ: "lead_time_days"
+  MBEW-STPRS: "standard_cost"
+
+purchase_orders:
+  EKKO-EBELN: "po_number"
+  EKKO-LIFNR: "supplier_id"
+  EKPO-MENGE: "order_quantity"
+  EKPO-NETPR: "net_price"
+
+inventory_management:
+  MARD-LABST: "unrestricted_stock"
+  MARD-UMLME: "stock_in_transfer"
+
+sales_orders:
+  VBAK-VBELN: "sales_order_id"
+  VBAP-KWMENG: "order_quantity"
+  VBAP-NETWR: "net_value"

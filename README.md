@@ -108,3 +108,13 @@ Phased execution per tick:
 ## License
 
 MIT
+
+## Phase 2.1 UI - React Frontend
+To build the frontend, run:
+```bash
+cd frontend
+npm install
+npm run build
+```
+The FastAPI server (`server.py`) will automatically serve the built UI from `frontend/dist` at the root path (`/`).
+**Warning**: `dashboard_ui.py` is deprecated. Use the React Frontend instead.
