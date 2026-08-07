@@ -1,16 +1,19 @@
 import numpy as np
+import climate_shocks
 
 def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multiplier: float = 1.0) -> np.ndarray:
     """
-    Generates a matrix of shape (num_ticks, 3) where columns are:
+    Generates a matrix of shape (num_ticks, 5) where columns are:
     0: Interest Rate Hike (additive)
     1: Savings Rate Increase (additive)
     2: Input Cost Multiplier (multiplicative, baseline 1.0)
+    3: Infrastructure Damage Severity (additive)
+    4: Route Closure Penalty (additive)
     
     This is passed to the JAX lax.scan to inject dynamic shocks.
     """
-    # Baseline: No shocks (0.0, 0.0, 1.0), applied with baseline telematics risk
-    shocks = np.zeros((num_ticks, 3), dtype=np.float32)
+    # Baseline: No shocks (0.0, 0.0, 1.0, 0.0, 0.0), applied with baseline telematics risk
+    shocks = np.zeros((num_ticks, 5), dtype=np.float32)
     shocks[:, 2] = telematics_multiplier
     
     if scenario_name == "baseline":
@@ -48,13 +51,10 @@ def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multipl
             if t < 30:
                 progress = t / 30.0
                 shocks[t, 2] = (1.0 + 1.5 * progress) * telematics_multiplier
-                shocks[t, 1] = 0.0
-                shocks[t, 0] = 0.0
             elif t < 60:
                 progress = (t - 30) / 30.0
                 shocks[t, 2] = (2.5 + 1.5 * progress) * telematics_multiplier
                 shocks[t, 1] = -0.02
-                shocks[t, 0] = 0.0
             elif t < 90:
                 progress = (t - 60) / 30.0
                 shocks[t, 2] = (4.0 - 2.5 * progress) * telematics_multiplier
@@ -66,6 +66,26 @@ def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multipl
                 shocks[t, 1] = 0.0
                 shocks[t, 0] = 0.0025
                 
+    elif scenario_name == "hurricane_gulf_coast":
+        # Massive localized infrastructure damage for 15 ticks, followed by a slow 40-tick rebuild phase.
+        # Let's start at tick 10.
+        for t in range(10, num_ticks):
+            if t < 10 + 15:
+                shocks[t, 3] = 0.8  # high severity
+            elif t < 10 + 15 + 40:
+                progress = (t - (10 + 15)) / 40.0
+                shocks[t, 3] = 0.8 * (1.0 - progress) # rebuild slowly reduces severity
+                
+    elif scenario_name == "panama_canal_drought":
+        # Chronic route closure penalty that slowly increases in severity over 60 ticks.
+        # Let's start at tick 5
+        for t in range(5, num_ticks):
+            if t < 5 + 60:
+                progress = (t - 5) / 60.0
+                shocks[t, 4] = 0.5 * progress # penalty up to 0.5
+            else:
+                shocks[t, 4] = 0.5
+
     return shocks
 
-SCENARIO_LIST = ["baseline", "tariff_shock", "rate_hike", "oil_shock", "recession", "pandemic", "supply_chain_2021"]
+SCENARIO_LIST = ["baseline", "tariff_shock", "rate_hike", "oil_shock", "recession", "pandemic", "supply_chain_2021", "hurricane_gulf_coast", "panama_canal_drought"]
