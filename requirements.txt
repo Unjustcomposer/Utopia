@@ -20,3 +20,4 @@ streamlit
 fpdf2
 matplotlib
 prometheus-client==0.25.0
+psycopg2-binary

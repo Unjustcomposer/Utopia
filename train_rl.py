@@ -34,15 +34,14 @@ def macroeconomic_objective(lmm_params, initial_state: SimState, config: Simulat
     loss = -1.0 * total_output + 1000.0 * inflation
     return loss, stacked_metrics
 
-def train_lmm():
+def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50):
     """
     End-to-End Training Loop for the Large Macroeconomic Model.
     Backpropagates gradients from the macro-objective directly into the Firm Transformer weights.
     """
     print("Initializing LMM End-to-End Training...")
     
-    config = SimulationConfig(num_agents=1000, num_firms=100, num_goods=10, num_ticks=50)
-    seed = 42
+    config = SimulationConfig(num_agents=1000, num_firms=100, num_goods=10, num_ticks=num_ticks)
     
     initial_state = init_sim_state(config, seed)
     lmm_params = initial_state.lmm_params
@@ -55,9 +54,8 @@ def train_lmm():
     loss_and_grad_fn = jax.value_and_grad(macroeconomic_objective, has_aux=True)
     loss_and_grad_fn_jit = jax.jit(loss_and_grad_fn, static_argnames=("config",))
     
-    num_epochs = 2
-    for epoch in range(num_epochs):
-        print(f"Epoch {epoch+1}/{num_epochs}: Running forward sim and backward trace...")
+    for epoch in range(epochs):
+        print(f"Epoch {epoch+1}/{epochs}: Running forward sim and backward trace...")
         
         # Calculate loss and gradients
         (loss, aux), grads = loss_and_grad_fn_jit(lmm_params, initial_state, config)
@@ -69,6 +67,10 @@ def train_lmm():
         print(f"  Loss: {loss:.4f} | Final Price Index: {aux['price_index'][-1]:.4f} | Mean Output: {jnp.mean(aux['total_output']):.4f}")
         
     print("LMM Training Complete. The Firm Transformer has learned a macroeconomic policy.")
+    
+    from checkpoint import save_lmm_checkpoint
+    save_lmm_checkpoint(lmm_params)
+    print(f"Saved LMM checkpoint to checkpoints/lmm_latest.pkl")
 
 if __name__ == "__main__":
     train_lmm()

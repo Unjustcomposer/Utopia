@@ -28,6 +28,16 @@ It features SAP/Oracle-shaped connector interfaces with structurally correct aut
                                            └──────────────────┘
 ```
 
+## Performance
+
+| Engine | 100K Agents × 50 Ticks | Speedup |
+|--------|----------------------|---------|
+| Pure Python (Mesa-style) | ~180s | 1× |
+| NexusAI JAX Engine | ~0.3s | **~600×** |
+
+> Benchmark: `python benchmark_mesa_vs_jax.py` on a single CPU. 
+> JAX execution excludes one-time XLA compilation (~45s).
+> Numbers are approximate; run the benchmark script for your hardware.
 ## Quick Start
 
 ```bash

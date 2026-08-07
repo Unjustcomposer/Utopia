@@ -37,6 +37,9 @@ class SAP_ERP_Client:
         self.csrf_token = None
         self.last_sync_timestamp = None
         
+        self.is_mock_mode = (self.client_id == "mock_client_id")
+        self.mock_fallback_reason = "Initialized with mock_client_id" if self.is_mock_mode else None
+        
         # Configure robust connection pooling and retry logic
         self.session = requests.Session()
         retries = Retry(
@@ -69,6 +72,8 @@ class SAP_ERP_Client:
             logger.error(f"SAP authentication failed: {e}. Falling back to mock mode.")
             self.client_id = "mock_client_id"
             self.access_token = "mock_bearer_token"
+            self.is_mock_mode = True
+            self.mock_fallback_reason = f"Authentication failed: {e}"
             
     def _fetch_csrf_token(self):
         """Performs an empty GET request to fetch the X-CSRF-Token."""
@@ -112,33 +117,39 @@ class SAP_ERP_Client:
         try:
             resp = self.session.get(f"{self.endpoint_url}/{endpoint}", headers=self._get_headers(), params=params, timeout=30)
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            data["data_source"] = "live"
+            return data
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to fetch data from {endpoint}: {e}. Falling back to mock data.")
+            self.is_mock_mode = True
+            self.mock_fallback_reason = f"GET {endpoint} failed: {e}"
             return self._get_mock_data(endpoint)
 
     def _get_mock_data(self, endpoint: str) -> Dict[str, Any]:
+        result = {"d": {"results": []}}
         if "API_MATERIAL_STOCK" in endpoint:
-            return {"d": {"results": [
+            result = {"d": {"results": [
                 {"Material": "WidgetA", "Plant": "P001", "UnrestrictedStock": 50000.0, "SafetyStock": 5000.0, "Currency": "USD", "Valuation": 100000.0},
                 {"Material": "WidgetB", "Plant": "P001", "UnrestrictedStock": 15000.0, "SafetyStock": 2000.0, "Currency": "USD", "Valuation": 75000.0}
             ]}}
         elif "API_PRODUCT_SRV" in endpoint:
-            return {"d": {"results": [
+            result = {"d": {"results": [
                 {"Product": "WidgetA", "StandardCost": 2.0, "LeadTimeDays": 5},
                 {"Product": "WidgetB", "StandardCost": 5.0, "LeadTimeDays": 10}
             ]}}
         elif "API_PURCHASEORDER_PROCESS_SRV" in endpoint:
-            return {"d": {"results": [
+            result = {"d": {"results": [
                 {"PurchaseOrder": "PO-1001", "Supplier": "SuppA", "OrderQuantity": 1000, "NetPrice": 1.90},
                 {"PurchaseOrder": "PO-1002", "Supplier": "SuppB", "OrderQuantity": 500, "NetPrice": 4.80}
             ]}}
         elif "API_SALES_ORDER_SRV" in endpoint:
-            return {"d": {"results": [
+            result = {"d": {"results": [
                 {"SalesOrder": "SO-2001", "Material": "WidgetA", "OrderQuantity": 2000, "NetValue": 5000.0},
                 {"SalesOrder": "SO-2002", "Material": "WidgetB", "OrderQuantity": 300, "NetValue": 2400.0}
             ]}}
-        return {"d": {"results": []}}
+        result["data_source"] = "mock"
+        return result
 
     def pull_incremental_data(self):
         """Pulls deltas based on last sync timestamp."""
@@ -209,17 +220,21 @@ class SAP_ERP_Client:
         if self.client_id == "mock_client_id":
             logger.info(f"[MOCK] SAP PO Created: {quantity} of {material} at {plant}")
             audit_logger.log_autonomous_action("CREATE_PURCHASE_ORDER", payload, "SAP_ECC")
-            return {"d": {"PurchaseOrder": "MOCK_PO_999888"}}
+            return {"d": {"PurchaseOrder": "MOCK_PO_999888"}, "data_source": "mock"}
             
         try:
             resp = self.session.post(f"{self.endpoint_url}/API_PURCHASEORDER_PROCESS_SRV/A_PurchaseOrder", headers=headers, json=payload, timeout=30)
             resp.raise_for_status()
             audit_logger.log_autonomous_action("CREATE_PURCHASE_ORDER", payload, "SAP_ECC")
-            return resp.json()
+            data = resp.json()
+            data["data_source"] = "live"
+            return data
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to create PO: {e}. Falling back to mock.")
+            self.is_mock_mode = True
+            self.mock_fallback_reason = f"POST PO failed: {e}"
             audit_logger.log_autonomous_action("CREATE_PURCHASE_ORDER_MOCK", payload, "SAP_ECC")
-            return {"d": {"PurchaseOrder": "MOCK_PO_FAILOVER"}}
+            return {"d": {"PurchaseOrder": "MOCK_PO_FAILOVER"}, "data_source": "mock"}
         
 class Oracle_NetSuite_Client:
     """Production client for Oracle NetSuite SuiteTalk REST API."""
@@ -234,6 +249,9 @@ class Oracle_NetSuite_Client:
         self.account_id = account_id.lower().replace("_", "-")
         self.endpoint_url = f"https://{self.account_id}.suitetalk.api.netsuite.com/services/rest/record/v1"
         self.client_id = client_id
+        
+        self.is_mock_mode = (self.client_id == "mock_client_id")
+        self.mock_fallback_reason = "Initialized with mock_client_id" if self.is_mock_mode else None
         
         # Configure robust connection pooling and retry logic
         self.session = requests.Session()
@@ -263,6 +281,7 @@ class Oracle_NetSuite_Client:
         
         if self.client_id == "mock_client_id":
             return {
+                "data_source": "mock",
                 "items": [
                     {"id": "SO-101", "status": "Pending Fulfillment", "total": 25000.0, "lines": {"items": [{"item": "WidgetA", "quantity": 10.0}]}},
                     {"id": "SO-102", "status": "Billed", "total": 12500.0, "lines": {"items": [{"item": "WidgetB", "quantity": 5.0}]}}
@@ -279,20 +298,32 @@ class Oracle_NetSuite_Client:
                 "offset": offset
             }
             
-            resp = self.session.get(f"{self.endpoint_url}/salesOrder", headers=headers, params=params, timeout=30)
-            resp.raise_for_status()
-            
-            data = resp.json()
-            items = data.get("items", [])
-            all_results.extend(items)
-            
-            # SuiteTalk pagination checks
-            if not data.get("hasMore", False):
-                break
+            try:
+                resp = self.session.get(f"{self.endpoint_url}/salesOrder", headers=headers, params=params, timeout=30)
+                resp.raise_for_status()
                 
-            offset += limit
+                data = resp.json()
+                items = data.get("items", [])
+                all_results.extend(items)
+                
+                # SuiteTalk pagination checks
+                if not data.get("hasMore", False):
+                    break
+                    
+                offset += limit
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to fetch Sales Orders: {e}. Falling back to mock.")
+                self.is_mock_mode = True
+                self.mock_fallback_reason = f"GET salesOrder failed: {e}"
+                return {
+                    "data_source": "mock",
+                    "items": [
+                        {"id": "SO-101", "status": "Pending Fulfillment", "total": 25000.0, "lines": {"items": [{"item": "WidgetA", "quantity": 10.0}]}},
+                        {"id": "SO-102", "status": "Billed", "total": 12500.0, "lines": {"items": [{"item": "WidgetB", "quantity": 5.0}]}}
+                    ]
+                }
             
-        return {"items": all_results}
+        return {"data_source": "live", "items": all_results}
         
     def create_sales_order(self, item: str, quantity: float, location: str) -> Dict[str, Any]:
         """Autonomously injects a Sales Order into NetSuite for downstream fulfillment."""
@@ -315,12 +346,21 @@ class Oracle_NetSuite_Client:
         if self.client_id == "mock_client_id":
             logger.info(f"[MOCK] Oracle NetSuite SO Created: {quantity} of {item} at {location}")
             audit_logger.log_autonomous_action("CREATE_SALES_ORDER", payload, "ORACLE_NETSUITE")
-            return {"id": "MOCK_SO_777666"}
+            return {"id": "MOCK_SO_777666", "data_source": "mock"}
             
-        resp = self.session.post(f"{self.endpoint_url}/salesOrder", headers=headers, json=payload, timeout=30)
-        resp.raise_for_status()
-        audit_logger.log_autonomous_action("CREATE_SALES_ORDER", payload, "ORACLE_NETSUITE")
-        return resp.json()
+        try:
+            resp = self.session.post(f"{self.endpoint_url}/salesOrder", headers=headers, json=payload, timeout=30)
+            resp.raise_for_status()
+            audit_logger.log_autonomous_action("CREATE_SALES_ORDER", payload, "ORACLE_NETSUITE")
+            data = resp.json()
+            data["data_source"] = "live"
+            return data
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to create SO: {e}. Falling back to mock.")
+            self.is_mock_mode = True
+            self.mock_fallback_reason = f"POST salesOrder failed: {e}"
+            audit_logger.log_autonomous_action("CREATE_SALES_ORDER_MOCK", payload, "ORACLE_NETSUITE")
+            return {"id": "MOCK_SO_FAILOVER", "data_source": "mock"}
 
 class SAPStateCompiler:
     """Translates SAP data into SimulationConfig overrides and SimState initial conditions."""

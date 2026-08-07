@@ -1,4 +1,11 @@
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from fastapi import Request
 
-limiter = Limiter(key_func=get_remote_address)
+def get_tenant_id(request: Request) -> str:
+    """Extract tenant_id from the request state for rate limiting."""
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if tenant_id:
+        return f"tenant:{tenant_id}"
+    return request.client.host if request.client else "unknown"
+
+limiter = Limiter(key_func=get_tenant_id)
