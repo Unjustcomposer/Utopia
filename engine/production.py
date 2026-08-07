@@ -65,7 +65,7 @@ def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     # Subtract from firm cash
     # We need to sum wages per firm.
     def sum_wages(firm_id):
-        return jnp.sum(jnp.where(agents.employer_id == firm_id, agents.wage, 0.0))
+        return jnp.sum(jnp.where(agents.employer_id == firm_id, earned_wages, 0.0))
         
     firm_ids = jnp.arange(firms.cash.shape[0])
     total_wages_per_firm = jax.vmap(sum_wages)(firm_ids)
@@ -78,4 +78,3 @@ def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     new_gov = state.gov._replace(tax_revenue=state.gov.tax_revenue + tick_tax_revenue, cash=state.gov.cash + tick_tax_revenue)
     
     return state._replace(agents=new_agents, firms=new_firms, gov=new_gov)
-

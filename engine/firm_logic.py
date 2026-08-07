@@ -89,17 +89,19 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     # Maintain continuous activity mask (1.0 = fully active, 0.0 = fully dead)
     new_is_active = firms.is_active * survival_prob
     bankrupt_mask = firms.is_active * (1.0 - survival_prob)
+    survival_mask = 1.0 - bankrupt_mask
     
     bad_debt = bankrupt_mask * jnp.maximum(0.0, firms.debt - firms.cash)
     new_macro_loans = macro.loans - jnp.sum(bankrupt_mask * firms.debt)
     new_bank_equity = macro.bank_equity - jnp.sum(bad_debt)
+    residual_equity_rebate = jnp.sum(bankrupt_mask * jnp.maximum(0.0, firms.cash - firms.debt))
     
     # Scale down states continuously
-    new_cash = firms.cash * survival_prob
-    new_debt = firms.debt * survival_prob
-    new_inventory = firms.inventory * survival_prob
-    new_employees = firms.num_employees * survival_prob
-    new_capital = firms.capital_goods * survival_prob
+    new_cash = firms.cash * survival_mask
+    new_debt = firms.debt * survival_mask
+    new_inventory = firms.inventory * survival_mask
+    new_employees = firms.num_employees * survival_mask
+    new_capital = firms.capital_goods * survival_mask
     
     # Entry
     key, subkey = jax.random.split(key)
@@ -141,5 +143,5 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
         bank_equity=new_bank_equity
     )
     
-    return state._replace(agents=new_agents, firms=new_firms, macro=new_macro, rng_key=key)
-
+    new_gov = state.gov._replace(cash=state.gov.cash + residual_equity_rebate)
+    return state._replace(agents=new_agents, firms=new_firms, macro=new_macro, gov=new_gov, rng_key=key)

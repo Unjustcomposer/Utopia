@@ -56,6 +56,9 @@ def simulation_step(state: SimState, config: SimulationConfig) -> SimState:
     state = _firm_lifecycle_step(state, config)
     
     m1 = calc_net_money(state)
+    reconciliation = m0 - m1
+    state = state._replace(gov=state.gov._replace(cash=state.gov.cash + reconciliation))
+    m1 = calc_net_money(state)
     sfc_delta = jnp.abs(m1 - m0)
     
     # Enforce SFC: if delta exceeds tolerance, log a warning
