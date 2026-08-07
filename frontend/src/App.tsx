@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Activity, Layers, Play, History } from 'lucide-react'
+import { useAuth0 } from '@auth0/auth0-react'
 
 export default function App() {
+  const { isAuthenticated, loginWithRedirect, logout, isLoading, getAccessTokenSilently } = useAuth0()
+  
   const [scenarios, setScenarios] = useState<string[]>([])
   const [profiles, setProfiles] = useState<string[]>([])
   
@@ -14,16 +17,31 @@ export default function App() {
   const [results, setResults] = useState<any>(null)
 
   useEffect(() => {
-    fetch('/api/scenarios').then(r => r.json()).then(setScenarios).catch(console.error)
-    fetch('/api/calibration_profiles').then(r => r.json()).then(setProfiles).catch(console.error)
-  }, [])
+    const fetchData = async () => {
+      try {
+        const token = await getAccessTokenSilently()
+        const headers = { Authorization: `Bearer ${token}` }
+        fetch('/api/scenarios', { headers }).then(r => r.json()).then(setScenarios).catch(console.error)
+        fetch('/api/calibration_profiles', { headers }).then(r => r.json()).then(setProfiles).catch(console.error)
+      } catch (e) {
+        console.error("Failed to fetch initial data", e)
+      }
+    }
+    if (isAuthenticated) {
+      fetchData()
+    }
+  }, [isAuthenticated, getAccessTokenSilently])
 
   const runSimulation = async () => {
     setLoading(true)
     try {
+      const token = await getAccessTokenSilently()
       const res = await fetch('/api/run/compare', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ scenario, agents, ticks })
       })
       const data = await res.json()
@@ -53,10 +71,38 @@ export default function App() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p style={{ color: 'var(--text-secondary)' }}>Loading Utopia...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div className="panel" style={{ maxWidth: '400px', textAlign: 'center', padding: '3rem' }}>
+          <Activity size={48} style={{ color: 'var(--primary)', marginBottom: '1rem' }} />
+          <h1 style={{ marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 600 }}>Utopia</h1>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', lineHeight: 1.5 }}>
+            Enterprise Supply Chain Simulation
+          </p>
+          <button onClick={() => loginWithRedirect()} style={{ width: '100%', padding: '0.75rem', fontWeight: 500 }}>
+            Log In
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app-container">
-      <header>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1><Activity style={{display: 'inline', verticalAlign: 'middle', marginRight: 8}}/> Utopia Scenario Builder</h1>
+        <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} style={{ background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+          Log Out
+        </button>
       </header>
 
       <div className="grid-2">
