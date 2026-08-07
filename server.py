@@ -29,9 +29,12 @@ from rate_limit import limiter
 from data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
+from audit_logger import SecureAuditLogger
 
 from config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
+
+audit_logger = SecureAuditLogger()
 
 app = FastAPI(title="NexusAI Engine API", description="Agent-Based Economic Simulator")
 
@@ -45,10 +48,11 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # [FIX] Overly Permissive CORS: restrict origins tightly and disable credentials if unnecessary
-# We allow localhost origins but disable allow_credentials to prevent session hijacking
+# We allow origins configured from environment but disable allow_credentials to prevent session hijacking
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:8765").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8765"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
@@ -60,22 +64,22 @@ from scenarios import SCENARIO_LIST
 
 # Endpoints for Frontend Phase 2.1
 @app.get("/api/calibration_profiles")
-async def get_calibration_profiles():
+async def get_calibration_profiles(user: User = Depends(get_current_user)):
     files = glob.glob("data/calibration_profiles/*.json")
     return [os.path.basename(f) for f in files]
 
 @app.get("/api/scenarios")
-async def get_scenarios():
+async def get_scenarios(user: User = Depends(get_current_user)):
     return SCENARIO_LIST
 
 @app.get("/api/runs")
-async def get_runs(db: Session = Depends(get_db)):
-    runs = db.query(SimulationResult).order_by(SimulationResult.created_at.desc()).limit(50).all()
+async def get_runs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    runs = db.query(SimulationResult).filter(SimulationResult.tenant_id == user.tenant_id).order_by(SimulationResult.created_at.desc()).limit(50).all()
     return [{"id": r.id, "run_type": r.run_type, "parameters": r.parameters, "created_at": r.created_at} for r in runs]
 
 @app.get("/api/runs/{run_id}")
-async def get_run_by_id(run_id: int, db: Session = Depends(get_db)):
-    run = db.query(SimulationResult).filter(SimulationResult.id == run_id).first()
+async def get_run_by_id(run_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    run = db.query(SimulationResult).filter(SimulationResult.id == run_id, SimulationResult.tenant_id == user.tenant_id).first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
@@ -130,6 +134,13 @@ async def handle_api_compare(
         )
         db.add(db_result)
         db.commit()
+        
+        audit_logger.log_autonomous_action("run_simulation_compare", {
+            "tenant_id": user.tenant_id,
+            "username": user.username,
+            "scenario": req.scenario,
+            "run_type": "compare"
+        }, "NexusAI")
         
         return sanitize_for_json(response)
     except Exception as e:
@@ -202,6 +213,13 @@ async def handle_api_run(
         db.add(db_result)
         db.commit()
         
+        audit_logger.log_autonomous_action("run_simulation", {
+            "tenant_id": user.tenant_id,
+            "username": user.username,
+            "scenario": req.scenario,
+            "run_type": "run"
+        }, "NexusAI")
+        
         return sanitize_for_json(response)
     except Exception as e:
         logger.exception("Error in handle_api_run")
@@ -242,7 +260,8 @@ async def ingest_agents_csv(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/ingest_global_baseline")
-async def ingest_global_baseline():
+@limiter.limit("2/minute")
+async def ingest_global_baseline(request: Request, user: User = Depends(get_current_user)):
     """
     Triggers the alternative data ingestion pipeline (Credit Cards, Satellite, Shipping)
     to compile a real-world snapshot into JAX tensors and run the simulation from that baseline.
@@ -258,6 +277,12 @@ async def ingest_global_baseline():
         result = await asyncio.to_thread(run_simulation, config=config, seed=42, scenario="baseline", baseline_state_overrides=overrides)
         
         # Optionally save to DB here...
+        
+        audit_logger.log_autonomous_action("ingest_global_baseline", {
+            "tenant_id": user.tenant_id,
+            "username": user.username,
+            "action": "ingest_baseline"
+        }, "NexusAI")
         
         return {
             "status": "success", 
