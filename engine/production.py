@@ -29,7 +29,9 @@ def _production_step(state: SimState, config: SimulationConfig) -> SimState:
     new_cash = firms.cash - input_cost
     new_cumulative_cost = firms.cumulative_cost + input_cost
     
-    new_gov_cash = state.gov.cash + jnp.sum(input_cost) # PREVENT MONEY LEAK
+    # Catch float leak and route to gov
+    total_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
+    new_gov_cash = state.gov.cash + total_firm_loss
     
     new_firms = firms._replace(
         inventory=new_inventory,
@@ -65,17 +67,25 @@ def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     # Subtract from firm cash
     # We need to sum wages per firm.
     def sum_wages(firm_id):
-        return jnp.sum(jnp.where(agents.employer_id == firm_id, agents.wage, 0.0))
+        return jnp.sum(jnp.where(agents.employer_id == firm_id, earned_wages, 0.0))
         
     firm_ids = jnp.arange(firms.cash.shape[0])
     total_wages_per_firm = jax.vmap(sum_wages)(firm_ids)
+    
+    # Catch float leak and route to gov
+    total_wages_paid = jnp.sum(total_wages_per_firm)
+    total_wages_received = jnp.sum(net_wages) + jnp.sum(tax)
+    float_leak = total_wages_paid - total_wages_received
     
     new_cash = firms.cash - total_wages_per_firm
     new_cumulative_cost = firms.cumulative_cost + total_wages_per_firm
     
     new_agents = agents._replace(budget=new_budget)
     new_firms = firms._replace(cash=new_cash, cumulative_cost=new_cumulative_cost)
-    new_gov = state.gov._replace(tax_revenue=state.gov.tax_revenue + tick_tax_revenue, cash=state.gov.cash + tick_tax_revenue)
+    new_gov = state.gov._replace(
+        tax_revenue=state.gov.tax_revenue + tick_tax_revenue, 
+        cash=state.gov.cash + tick_tax_revenue + float_leak
+    )
     
     return state._replace(agents=new_agents, firms=new_firms, gov=new_gov)
 

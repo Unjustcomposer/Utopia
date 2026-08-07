@@ -51,7 +51,13 @@ def _credit_market_step(state: SimState, config: SimulationConfig) -> SimState:
     new_debt = firm_debt_after_paydown + granted_loans
     new_macro_loans = macro.loans - jnp.sum(paydown) + jnp.sum(granted_loans)
     
-    new_bank_equity = macro.bank_equity + jnp.sum(interest_payment) - jnp.sum(interest_earned)
+    # Catch float leak and assign to bank equity to ensure EXACT SFC balance
+    total_agent_gain = jnp.sum(new_savings) - jnp.sum(agents.savings)
+    total_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
+    total_loans_loss = macro.loans - new_macro_loans
+    
+    total_equity_gain = total_firm_loss - total_loans_loss - total_agent_gain
+    new_bank_equity = macro.bank_equity + total_equity_gain
     
     # Update Macro Base Rate (Taylor rule based on previous tick inflation)
     # We will do this at the end of the tick when we have new prices

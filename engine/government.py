@@ -23,8 +23,12 @@ def _government_step(state: SimState, config: SimulationConfig) -> SimState:
     new_agent_budget = agents.budget + benefits_paid
     total_benefits = jnp.sum(benefits_paid)
     
-    new_gov_cash = gov.cash + total_corp_tax - total_benefits
-    new_transfers_paid = gov.transfers_paid + total_benefits
+    # Catch float leak and route to gov
+    total_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_firm_cash)
+    total_agent_gain = jnp.sum(new_agent_budget) - jnp.sum(agents.budget)
+    
+    new_gov_cash = gov.cash + total_firm_loss - total_agent_gain
+    new_transfers_paid = gov.transfers_paid + total_agent_gain
     
     new_agents = agents._replace(budget=new_agent_budget)
     new_firms = firms._replace(cash=new_firm_cash)

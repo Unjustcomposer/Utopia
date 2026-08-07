@@ -76,8 +76,11 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
     new_budget = agents.budget - save_amount - cost_per_agent - transport_cost
     
     # Send export revenue from foreign sector to firms and transport costs to government
-    new_foreign_cash = state.foreign.cash - jnp.sum(export_demand_per_good * ratio * safe_prices)
-    new_gov_cash = state.gov.cash + jnp.sum(transport_cost)
+    # Collect floating point mismatch and send to government to prevent SFC leak
+    total_spent_by_agents = jnp.sum(cost_per_agent)
+    total_spent_by_foreign = jnp.sum(export_demand_per_good * ratio * safe_prices)
+    
+    new_foreign_cash = state.foreign.cash - total_spent_by_foreign
     
     # Allocate firm sales proportionally to their inventory share of the good
     def calc_firm_sales(i):
@@ -97,6 +100,10 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
         
     firm_indices = jnp.arange(firms.cash.shape[0])
     firm_volumes, firm_revenues, firm_demands = jax.vmap(calc_firm_sales)(firm_indices)
+    
+    total_received_by_firms = jnp.sum(firm_revenues)
+    float_leak = (total_spent_by_agents + total_spent_by_foreign) - total_received_by_firms
+    new_gov_cash = state.gov.cash + jnp.sum(transport_cost) + float_leak
     
     new_inventory = firms.inventory - firm_volumes
     new_cash = firms.cash + firm_revenues

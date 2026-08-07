@@ -53,8 +53,8 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     # We sample a firm ID for ALL agents, but only apply it to newly_hired
     sampled_firm_ids = jax.random.choice(subkey, firms.cash.shape[0], shape=agents.employed.shape, p=firm_probs)
     
-    new_employed = jnp.maximum(agents.employed, newly_hired_mask)
-    new_employer_id = jnp.where(newly_hired_mask > 0.5, sampled_firm_ids, agents.employer_id)
+    new_employed = jnp.minimum(1.0, agents.employed + newly_hired_mask)
+    new_employer_id = jnp.where(newly_hired_mask > 0.0, sampled_firm_ids, agents.employer_id)
     
     # Nash Bargaining (Vectorized across firms)
     firm_res_wages = firms.price * config.productivity_per_worker
@@ -72,21 +72,24 @@ def _labor_market_step(state: SimState, config: SimulationConfig) -> SimState:
     # Re-calculate agent wages with the correct wage offers
     match_mask = jnp.arange(firms.cash.shape[0])[jnp.newaxis, :] == new_employer_id[:, jnp.newaxis]
     wage_matrix = jnp.where(match_mask, new_wage_offer[jnp.newaxis, :], 0.0)
-    agent_wages = jnp.max(wage_matrix, axis=1) * new_employed
+    agent_wages = jnp.max(wage_matrix, axis=1) # Rate of pay, NOT multiplied by employed here!
     
     # Set agent wages
-    new_agent_wages = jnp.where(new_employed > 0.5, agent_wages, agents.wage)
+    new_agent_wages = jnp.where(new_employed > 0.0, agent_wages, agents.wage)
     
-    # Update firm employee counts
+    # Update firm employee counts using the continuous probabilities!
     def count_employees(firm_id):
-        return jnp.sum(new_employer_id == firm_id)
+        return jnp.sum(jnp.where(new_employer_id == firm_id, new_employed, 0.0))
     
-    new_num_employees = jax.vmap(count_employees)(jnp.arange(firms.cash.shape[0])).astype(jnp.float32)
+    new_num_employees = jax.vmap(count_employees)(jnp.arange(firms.cash.shape[0]))
     
     # Pay vacancy cost
     total_vacancy_cost = vacancies * config.vacancy_cost
     new_cash = firms.cash - total_vacancy_cost
-    new_gov_cash = state.gov.cash + jnp.sum(total_vacancy_cost) # PREVENT MONEY LEAK
+    
+    # Catch float leak and route to gov
+    total_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
+    new_gov_cash = state.gov.cash + total_firm_loss # PREVENT MONEY LEAK
     
     new_agents = agents._replace(
         employed=new_employed,

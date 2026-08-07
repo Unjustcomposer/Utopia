@@ -97,6 +97,14 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     # Scale down states continuously
     new_cash = firms.cash * survival_prob
     new_debt = firms.debt * survival_prob
+    
+    # Float leak capture!
+    total_firm_cash_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
+    total_loans_loss = macro.loans - new_macro_loans
+    total_equity_loss = macro.bank_equity - new_bank_equity
+    
+    # Gov absorbs all leftover cash and float mismatches to ensure PERFECT SFC balance
+    new_gov_cash = state.gov.cash + total_firm_cash_loss - total_loans_loss + total_equity_loss
     new_inventory = firms.inventory * survival_prob
     new_employees = firms.num_employees * survival_prob
     new_capital = firms.capital_goods * survival_prob
@@ -141,5 +149,11 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
         bank_equity=new_bank_equity
     )
     
-    return state._replace(agents=new_agents, firms=new_firms, macro=new_macro, rng_key=key)
+    return state._replace(
+        agents=new_agents, 
+        firms=new_firms, 
+        macro=new_macro, 
+        rng_key=key,
+        gov=state.gov._replace(cash=new_gov_cash)
+    )
 

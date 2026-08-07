@@ -35,17 +35,15 @@ def _demographics_step(state: SimState, config: SimulationConfig) -> SimState:
     new_is_alive = jnp.ones_like(agents.is_alive)
     new_age = jnp.where(dies, 0, new_age)
     
-    # SFC FIX: Estate goes to government, new agent gets government grant
-    old_wealth = jnp.where(dies, agents.budget + agents.savings, 0.0)
-    new_agent_wealth = jnp.where(dies, config.initial_budget_min, 0.0)
-    wealth_delta = jnp.sum(old_wealth) - jnp.sum(new_agent_wealth)
-    new_gov_cash = state.gov.cash + wealth_delta
-    
     new_budget = jnp.where(dies, config.initial_budget_min, agents.budget)
     new_employed = agents.employed * (1.0 - dies.astype(jnp.float32))
     new_employer_id = jnp.where(dies, -1, agents.employer_id)
     new_savings = jnp.where(dies, 0.0, agents.savings)
     new_wage = jnp.where(dies, 0.0, agents.wage)
+    
+    # Catch float leak and route to gov
+    total_wealth_loss = jnp.sum(agents.budget) + jnp.sum(agents.savings) - jnp.sum(new_budget) - jnp.sum(new_savings)
+    new_gov_cash = state.gov.cash + total_wealth_loss
     
     new_agents = agents._replace(
         age=new_age,

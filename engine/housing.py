@@ -28,8 +28,9 @@ def _housing_step(state: SimState, config: SimulationConfig) -> SimState:
     down_payments = jnp.where(can_buy, new_housing_price[agents.region_id] * 0.2, 0.0)
     new_budget = new_budget - down_payments
     
-    total_leaked_housing = jnp.sum(housing_cost) + jnp.sum(down_payments)
-    new_gov_cash = state.gov.cash + total_leaked_housing # PREVENT MONEY LEAK
+    # Catch float leak and route to gov
+    total_agent_loss = jnp.sum(agents.budget) - jnp.sum(new_budget)
+    new_gov_cash = state.gov.cash + total_agent_loss
     
     new_agents = agents._replace(budget=new_budget, housing_status=new_housing_status, housing_wealth=jnp.where(new_housing_status == 1, new_housing_price[agents.region_id], 0.0))
     new_housing = housing._replace(price=new_housing_price)
