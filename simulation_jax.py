@@ -206,12 +206,14 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, rng_key=key, lmm_params=lmm_params)
 
 
+import climate_shocks
+
 # We pass SimulationConfig directly since it is a flax PyTree
 @partial(jax.jit, static_argnames=('num_ticks',))
 def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig, shocks_matrix: jnp.ndarray):
     
     def scan_body(state, tick_shocks):
-        hike_amt, savings_inc, cost_mult = tick_shocks
+        hike_amt, savings_inc, cost_mult, infra_damage, route_closure = tick_shocks
         
         # Apply shocks
         new_macro = state.macro._replace(base_rate=state.macro.base_rate + hike_amt)
@@ -219,6 +221,21 @@ def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig,
         new_firms = state.firms._replace(input_cost_multiplier=state.firms.input_cost_multiplier * cost_mult)
         
         shocked_state = state._replace(macro=new_macro, agents=new_agents, firms=new_firms)
+        
+        # Apply climate shocks
+        shocked_state = jax.lax.cond(
+            infra_damage > 0.0,
+            lambda s: climate_shocks.apply_infrastructure_damage(s, infra_damage),
+            lambda s: s,
+            shocked_state
+        )
+        
+        shocked_state = jax.lax.cond(
+            route_closure > 0.0,
+            lambda s: climate_shocks.apply_route_closure(s, route_closure),
+            lambda s: s,
+            shocked_state
+        )
         
         new_state = simulation_step(shocked_state, config)
         
@@ -228,7 +245,8 @@ def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig,
             "employment_rate": jnp.mean(new_state.agents.employed.astype(jnp.float32)),
             "total_output": jnp.sum(new_state.firms.inventory), 
             "gini": 0.0, 
-            "total_welfare": jnp.sum(new_state.agents.savings)
+            "total_welfare": jnp.sum(new_state.agents.savings),
+            "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier)
         }
         
         return new_state, tick_metrics
@@ -276,6 +294,21 @@ class JAXSimulation:
                 "total_welfare": float(stacked_metrics["total_welfare"][i]),
             })
             
+        # Compute Risk Metrics: Value at Risk and Maximum Foreseeable Loss
+        # MFL could be the max drop in total output from the max total output
+        total_outputs = stacked_metrics["total_output"]
+        max_output = jnp.max(total_outputs)
+        min_output_after_max = jnp.min(total_outputs[jnp.argmax(total_outputs):])
+        mfl_inventory_drop = float(max_output - min_output_after_max)
+        
+        cost_multipliers = stacked_metrics["avg_cost_multiplier"]
+        var_cost_spike = float(jnp.max(cost_multipliers) - jnp.mean(cost_multipliers))
+        
+        risk_metrics = {
+            "value_at_risk": var_cost_spike,
+            "maximum_foreseeable_loss": mfl_inventory_drop
+        }
+            
         # Reconstruct final agents/firms for summary
         # Just creating dummy data to satisfy the legacy interface
         final_firms = []
@@ -321,6 +354,9 @@ class JAXSimulation:
             final_firms=final_firms,
             lmm_explanations=lmm_exps
         )
+        
+        # Attach risk_metrics to result, or wrap in a dict. Since SimulationResult is a dataclass without it, we can just attach it directly.
+        setattr(result, 'risk_metrics', risk_metrics)
         return result
 
 def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, telematics_multiplier: float = 1.0) -> SimulationResult:

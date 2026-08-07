@@ -16,6 +16,21 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any>(null)
 
+  // Academic / Research Mode (Phase 4.3)
+  const [isAcademicMode, setIsAcademicMode] = useState(false)
+  const [firmLearningRate, setFirmLearningRate] = useState(0.01)
+  const [dmpMatchEfficiency, setDmpMatchEfficiency] = useState(0.5)
+  const [baseSavingsRate, setBaseSavingsRate] = useState(0.1)
+
+  // Consultant Workspace (Phase 4.1)
+  const [view, setView] = useState<'scenario' | 'consultant'>('scenario')
+  
+  const dummyPortfolios = [
+    { id: 1, name: "Acme Corp Supply Chain", clients: 12, lastRun: "2 hrs ago" },
+    { id: 2, name: "Global Logistics Inc", clients: 8, lastRun: "1 day ago" },
+    { id: 3, name: "FinTech Banking Sector", clients: 24, lastRun: "3 days ago" }
+  ]
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -71,6 +86,30 @@ export default function App() {
     }
   }
 
+  const exportToCSV = () => {
+    if (!results) return
+    const csvRows = ['Tick,Baseline Gini,Scenario Gini,Baseline Unemployment,Scenario Unemployment,Baseline Price,Scenario Price']
+    chartData.forEach(row => {
+      csvRows.push(`${row.tick},${row.baselineGini},${row.scenarioGini},${row.baselineUnemployment},${row.scenarioUnemployment},${row.baselinePrice},${row.scenarioPrice}`)
+    })
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'simulation_results.csv'
+    a.click()
+  }
+
+  const exportToJSON = () => {
+    if (!results) return
+    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'simulation_results.json'
+    a.click()
+  }
+
   if (isLoading) {
     return (
       <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -99,12 +138,56 @@ export default function App() {
   return (
     <div className="app-container">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1><Activity style={{display: 'inline', verticalAlign: 'middle', marginRight: 8}}/> Utopia Scenario Builder</h1>
-        <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} style={{ background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem 1rem', cursor: 'pointer' }}>
-          Log Out
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <h1><Activity style={{display: 'inline', verticalAlign: 'middle', marginRight: 8}}/> Utopia</h1>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button 
+              onClick={() => setView('scenario')} 
+              style={{ background: view === 'scenario' ? 'var(--primary-color)' : 'transparent', border: '1px solid var(--border)' }}
+            >
+              Scenario Builder
+            </button>
+            <button 
+              onClick={() => setView('consultant')} 
+              style={{ background: view === 'consultant' ? 'var(--primary-color)' : 'transparent', border: '1px solid var(--border)' }}
+            >
+              Consultant Workspace
+            </button>
+          </div>
+        </div>
+        <div className="header-controls">
+          <label className="toggle-switch">
+            <input 
+              type="checkbox" 
+              checked={isAcademicMode} 
+              onChange={e => setIsAcademicMode(e.target.checked)} 
+            />
+            Academic Mode
+          </label>
+          <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} style={{ background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+            Log Out
+          </button>
+        </div>
       </header>
 
+      {view === 'consultant' ? (
+        <div className="consultant-workspace">
+          <div className="panel">
+            <h2>Client Portfolios</h2>
+            <p style={{ color: 'var(--text-secondary)' }}>Select a portfolio to manage client-specific simulations.</p>
+            <div className="portfolio-list">
+              {dummyPortfolios.map(p => (
+                <div key={p.id} className="portfolio-card">
+                  <h3>{p.name}</h3>
+                  <p>{p.clients} Active Clients</p>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.7 }}>Last Run: {p.lastRun}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="grid-2">
         <div className="panel">
           <h2><Layers style={{display: 'inline', verticalAlign: 'middle', marginRight: 8}}/> Parameters</h2>
@@ -131,6 +214,23 @@ export default function App() {
               <input type="number" value={ticks} onChange={e => setTicks(Number(e.target.value))} />
             </div>
           </div>
+          
+          {isAcademicMode && (
+            <div className="grid-2" style={{ marginTop: '1rem', padding: '1rem', background: '#111318', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <div className="form-group">
+                <label>Firm Learning Rate</label>
+                <input type="number" step="0.001" value={firmLearningRate} onChange={e => setFirmLearningRate(Number(e.target.value))} />
+              </div>
+              <div className="form-group">
+                <label>DMP Match Efficiency</label>
+                <input type="number" step="0.01" value={dmpMatchEfficiency} onChange={e => setDmpMatchEfficiency(Number(e.target.value))} />
+              </div>
+              <div className="form-group">
+                <label>Base Savings Rate</label>
+                <input type="number" step="0.01" value={baseSavingsRate} onChange={e => setBaseSavingsRate(Number(e.target.value))} />
+              </div>
+            </div>
+          )}
           
           <button onClick={runSimulation} disabled={loading} style={{width: '100%', marginTop: '1rem'}}>
             {loading ? 'Running JAX Engine...' : <><Play size={16} style={{display:'inline', verticalAlign:'middle'}}/> Run Comparison</>}
@@ -193,7 +293,14 @@ export default function App() {
               This caused aggregate demand to drop, increasing unemployment to {(results.scenario.summary.avg_unemployment * 100).toFixed(1)}%.
             </p>
           </div>
+          
+          <div className="export-buttons">
+            <button className="export-btn" onClick={exportToCSV}>Export to CSV</button>
+            <button className="export-btn" onClick={exportToJSON}>Export to JSON</button>
+          </div>
         </div>
+      )}
+        </>
       )}
     </div>
   )
