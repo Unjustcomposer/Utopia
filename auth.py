@@ -9,10 +9,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Auth0 Configuration
-AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN", "utopia-mock.us.auth0.com")
+AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
+if not AUTH0_DOMAIN:
+    raise RuntimeError("AUTH0_DOMAIN must be set. For local dev, set AUTH0_DOMAIN=dev and JWT_SECRET to a strong secret.")
+
 AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE", "https://api.utopia.com")
 AUTH0_ALGORITHMS = ["RS256"]
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
+
+DEV_MODE = os.getenv("NEXUSAI_DEV_MODE", "false").lower() == "true"
+JWT_SECRET = os.getenv("JWT_SECRET")
+if DEV_MODE and not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET must be set when NEXUSAI_DEV_MODE=true.")
 
 security = HTTPBearer()
 
@@ -23,17 +30,8 @@ class User(BaseModel):
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
-        # Fallback to HS256 for testing if domain is mock
-        if AUTH0_DOMAIN == "utopia-mock.us.auth0.com":
-            try:
-                # Try RS256 without verification just to parse, or fallback to HS256
-                unverified_header = jwt.get_unverified_header(token)
-                if unverified_header.get("alg") == "HS256":
-                    payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-                else:
-                    payload = jwt.decode(token, options={"verify_signature": False})
-            except Exception:
-                payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        if DEV_MODE and AUTH0_DOMAIN == "dev":
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
         else:
             jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
             jwks_client = PyJWKClient(jwks_url)

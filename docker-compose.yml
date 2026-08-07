@@ -1,12 +1,31 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nexusai
+      POSTGRES_PASSWORD: nexusai_dev
+      POSTGRES_DB: nexusai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   api:
     build: .
     ports:
       - "8765:8765"
+    depends_on:
+      - db
     volumes:
       - .:/app
     environment:
-      - JWT_SECRET=supersecretkey
-      - DATABASE_URL=sqlite:///./nexusai.db
+      - DATABASE_URL=postgresql://nexusai:nexusai_dev@db:5432/nexusai
+      - AUTH0_DOMAIN=dev
+      - NEXUSAI_DEV_MODE=true
+      # JWT_SECRET=<generate-a-real-secret>
+      # For local dev without docker: DATABASE_URL=sqlite:///./nexusai.db
+
+volumes:
+  pgdata:

@@ -1,5 +1,4 @@
 import datetime
-import random
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 import pandas as pd
@@ -70,7 +69,7 @@ class GlobalBaselineCompiler:
         self.config = config
         self.client = FredDataClient()
         
-    def compile_baseline(self) -> Dict[str, jnp.ndarray]:
+    def compile_baseline(self, seed: int = 42) -> Dict[str, jnp.ndarray]:
         """
         Fetches live FRED data and broadcasts/distributes it across JAX tensors,
         adding synthetic variance to maintain heterogeneous agent/firm behavior.
@@ -87,16 +86,16 @@ class GlobalBaselineCompiler:
         
         # 2. Distribute to Agents (with variance for heterogeneity)
         # Agents have different savings rates around the macro mean
-        np.random.seed(42) # Deterministic compilation for baseline
+        rng = np.random.default_rng(seed)
         
         agent_savings_rates = np.clip(
-            np.random.normal(loc=base_savings_rate, scale=0.02, size=self.config.num_agents), 
+            rng.normal(loc=base_savings_rate, scale=0.02, size=self.config.num_agents), 
             0.0, 0.5
         ).astype(np.float32)
         
         # Agent budgets based on median income (scaled down for tick-based simulation, e.g. monthly)
         monthly_income = income_macro / 12.0
-        agent_budgets = np.random.lognormal(
+        agent_budgets = rng.lognormal(
             mean=np.log(monthly_income) - (0.5**2 / 2), 
             sigma=0.5, 
             size=self.config.num_agents
@@ -104,7 +103,7 @@ class GlobalBaselineCompiler:
         
         # 3. Distribute to Firms
         # Assume base production capacity is 100, and current inventory reflects utilization
-        firm_capacities = np.random.normal(loc=100.0, scale=10.0, size=self.config.num_firms).astype(np.float32)
+        firm_capacities = rng.normal(loc=100.0, scale=10.0, size=self.config.num_firms).astype(np.float32)
         firm_cash = (firm_capacities * base_capacity_util * 10.0).astype(np.float32)
         
         # 4. Macro/Housing

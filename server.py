@@ -33,10 +33,28 @@ from audit_logger import SecureAuditLogger
 
 from config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
+from checkpoint import load_lmm_checkpoint
+import jwt
+
+GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
 
 audit_logger = SecureAuditLogger()
 
 app = FastAPI(title="NexusAI Engine API", description="Agent-Based Economic Simulator")
+
+@app.middleware("http")
+async def extract_tenant_for_ratelimit(request: Request, call_next):
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            unverified = jwt.decode(token, options={"verify_signature": False})
+            tenant_id = unverified.get("https://utopia.com/tenant_id") or unverified.get("tenant_id")
+            if tenant_id:
+                request.state.tenant_id = tenant_id
+        except Exception:
+            pass
+    return await call_next(request)
 
 from prometheus_client import make_asgi_app, Counter, Histogram
 app.mount("/metrics", make_asgi_app())
@@ -68,6 +86,13 @@ async def get_calibration_profiles(user: User = Depends(get_current_user)):
     files = glob.glob("data/calibration_profiles/*.json")
     return [os.path.basename(f) for f in files]
 
+@app.get("/api/erp/status")
+async def get_erp_status(user: User = Depends(get_current_user)):
+    return {
+        "SAP_ECC": {"mode": "mock", "reason": "No valid credentials provided for live system"},
+        "Oracle_NetSuite": {"mode": "mock", "reason": "No valid credentials provided for live system"}
+    }
+
 @app.get("/api/scenarios")
 async def get_scenarios(user: User = Depends(get_current_user)):
     return SCENARIO_LIST
@@ -92,6 +117,7 @@ class CompareRequest(BaseModel):
     use_us_calibration: bool = False
     seed: int = 42
     scenario: str = "recession"
+    firm_behavior_mode: int = Field(default=2, ge=0, le=2)
 
 @app.post("/api/run/compare")
 @limiter.limit("5/minute")
@@ -108,7 +134,7 @@ async def handle_api_compare(
             num_goods=req.goods,
             num_ticks=req.ticks,
             use_us_calibration=req.use_us_calibration,
-            firm_behavior_mode=2
+            firm_behavior_mode=req.firm_behavior_mode
         )
         baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline")
         scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
@@ -169,6 +195,7 @@ class RunRequest(BaseModel):
     use_us_calibration: bool = False
     seed: int = 42
     scenario: str = "baseline"
+    firm_behavior_mode: int = Field(default=2, ge=0, le=2)
 
 def _ray_run_simulation(config, seed, scenario="baseline"):
     from simulation_jax import run_simulation
@@ -191,7 +218,7 @@ async def handle_api_run(
             num_goods=req.goods,
             num_ticks=req.ticks,
             use_us_calibration=req.use_us_calibration,
-            firm_behavior_mode=2 # Use Heuristic for stability
+            firm_behavior_mode=req.firm_behavior_mode
         )
         
         with SIMULATION_DURATION.time():
@@ -223,6 +250,64 @@ async def handle_api_run(
         return sanitize_for_json(response)
     except Exception as e:
         logger.exception("Error in handle_api_run")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ExperimentRequest(BaseModel):
+    agents: int = 200
+    firms: int = 5
+    goods: int = 4
+    ticks: int = 120
+    seed: int = 42
+    num_seeds: int = 5
+    scenario_a: str = "baseline"
+    scenario_b: str = "tariffs"
+    firm_behavior_mode: int = Field(default=2, ge=0, le=2)
+
+@app.post("/api/experiment")
+@limiter.limit("5/minute")
+async def handle_api_experiment(
+    request: Request,
+    req: ExperimentRequest,
+    user: User = Depends(get_current_user)
+):
+    try:
+        import numpy as np
+        config = SimulationConfig(
+            num_agents=req.agents,
+            num_firms=req.firms,
+            num_goods=req.goods,
+            num_ticks=req.ticks,
+            firm_behavior_mode=req.firm_behavior_mode
+        )
+        
+        async def run_scenario(scenario_name):
+            outputs = []
+            for i in range(req.num_seeds):
+                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name)
+                if res.metrics_history:
+                    outputs.append(res.metrics_history[-1].get('total_output', 0))
+            return np.mean(outputs) if outputs else 0, np.std(outputs) if outputs else 0
+            
+        mean_a, std_a = await run_scenario(req.scenario_a)
+        mean_b, std_b = await run_scenario(req.scenario_b)
+        
+        diff = mean_b - mean_a
+        pct = (diff / mean_a * 100) if mean_a else 0
+        
+        audit_logger.log_autonomous_action("run_experiment", {
+            "tenant_id": user.tenant_id,
+            "username": user.username,
+            "scenario_a": req.scenario_a,
+            "scenario_b": req.scenario_b
+        }, "NexusAI")
+        
+        return sanitize_for_json({
+            "scenario_a": {"mean_output": mean_a, "std_output": std_a},
+            "scenario_b": {"mean_output": mean_b, "std_output": std_b},
+            "deltas": {"absolute": diff, "percentage": pct}
+        })
+    except Exception as e:
+        logger.exception("Error in handle_api_experiment")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/agents/ingest")
@@ -314,8 +399,12 @@ async def handle_api_explain(
         import jax
         import jax.numpy as jnp
         
-        # Load weights (for now we use initial weights, in a real system we'd load the trained checkpoint)
-        params = await asyncio.to_thread(get_initial_lmm_params, jax.random.PRNGKey(42))
+        warning = None
+        if GLOBAL_LMM_PARAMS is not None:
+            params = GLOBAL_LMM_PARAMS
+        else:
+            warning = "Using untrained model weights. Run 'python main.py train' to train the LMM first."
+            params = await asyncio.to_thread(get_initial_lmm_params, jax.random.PRNGKey(42))
         
         lmm_inputs = jnp.stack([
             jnp.array(req.demand_history),
@@ -330,7 +419,10 @@ async def handle_api_explain(
         else:
             explanations = await asyncio.to_thread(generate_executive_explanation, params, lmm_inputs, "supply_chain")
             
-        return sanitize_for_json(explanations)
+        response = sanitize_for_json(explanations)
+        if warning:
+            response["warning"] = warning
+        return response
     except Exception as e:
         logger.exception("Error in handle_api_explain")
         raise HTTPException(status_code=500, detail=str(e))

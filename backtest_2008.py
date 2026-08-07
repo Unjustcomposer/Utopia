@@ -38,7 +38,18 @@ def run_2008_backtest():
         state = simulation_step(state, config)
         
         # Calculate metrics
-        gdp = jnp.sum(state.firms.price * state.firms.inventory) # Proxy for output value
+        # GDP proxy: total goods produced (we calculate it based on labor)
+        def total_firm_skill(firm_id):
+            return jnp.sum(jnp.where(state.agents.employer_id == firm_id, state.agents.skill, 0.0))
+        firm_ids = jnp.arange(state.firms.cash.shape[0])
+        effective_labor = jax.vmap(total_firm_skill)(firm_ids)
+        labor_output = effective_labor * config.productivity_per_worker
+        capacity = state.firms.capital_goods * 10.0
+        raw_output = jnp.minimum(capacity, labor_output)
+        raw_output = jnp.where(state.firms.is_active, raw_output, 0.0)
+        production = raw_output / jnp.maximum(state.firms.input_cost_multiplier, 0.01)
+        
+        gdp = jnp.sum(production * state.firms.price) # Proxy for output value
         employed = jnp.sum(state.agents.employed)
         total_alive = jnp.sum(state.agents.is_alive)
         unemployment_rate = 1.0 - (employed / jnp.maximum(1.0, total_alive))
