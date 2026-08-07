@@ -1,0 +1,37 @@
+{
+  "_sources": {
+    "tariffs": "USITC HTS, Section 301 (2021)",
+    "cost_structure": "US Census Annual Retail Trade Survey 2021, NAICS 44-45",
+    "logistics": "Pacific Maritime Association, Port of LA annual reports",
+    "labor": "BLS QCEW, CPS, CES 2021",
+    "macro": "FRED 2021"
+  },
+  "tariff_rates": {
+    "HS_8471": 0.25,
+    "HS_9403": 0.25,
+    "HS_6110": 0.075,
+    "HS_8528": 0.075,
+    "HS_8504": 0.25
+  },
+  "cost_structure": {
+    "gross_margin": 0.29,
+    "input_cost_base": 0.71,
+    "capex_percent": 0.03
+  },
+  "logistics": {
+    "mean_ocean_transit_days": 37.5,
+    "mean_container_dwell_days": 8.7,
+    "port_teu_throughput_monthly": 850000
+  },
+  "labor": {
+    "avg_weekly_wage": 620.0,
+    "unemployment_rate": 0.042,
+    "total_employment": 15600000
+  },
+  "macro": {
+    "federal_funds_rate": 0.0008,
+    "cpi_annual": 278.802,
+    "personal_savings_rate": 0.124,
+    "capacity_utilization": 0.764
+  }
+}

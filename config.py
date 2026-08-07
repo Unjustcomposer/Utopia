@@ -10,7 +10,18 @@ from __future__ import annotations
 
 import jax
 from flax import struct
-from typing import Optional
+from typing import Optional, Dict
+import dataclasses
+
+@dataclasses.dataclass
+class CalibrationProfile:
+    _sources: Dict[str, str] = dataclasses.field(default_factory=dict)
+    tariff_rates: Dict[str, float] = dataclasses.field(default_factory=dict)
+    cost_structure: Dict[str, float] = dataclasses.field(default_factory=dict)
+    logistics: Dict[str, float] = dataclasses.field(default_factory=dict)
+    labor: Dict[str, float] = dataclasses.field(default_factory=dict)
+    macro: Dict[str, float] = dataclasses.field(default_factory=dict)
+
 
 @struct.dataclass
 class SimulationConfig:
@@ -122,3 +133,16 @@ class SimulationConfig:
     def copy(self, **overrides) -> "SimulationConfig":
         """Return a shallow copy with selected fields overridden."""
         return self.replace(**overrides)
+
+    @classmethod
+    def from_profile(cls, profile: "CalibrationProfile") -> "SimulationConfig":
+        """Initialize a SimulationConfig derived from a CalibrationProfile."""
+        return cls(
+            use_us_calibration=True,
+            input_cost_base=profile.cost_structure.get("input_cost_base", 3.0),
+            savings_rate_min=max(0.0, profile.macro.get("personal_savings_rate", 0.05) - 0.05),
+            savings_rate_max=profile.macro.get("personal_savings_rate", 0.3) + 0.05,
+            central_bank_base_rate=profile.macro.get("federal_funds_rate", 0.02),
+            base_wage_min=profile.labor.get("avg_weekly_wage", 620.0) / 20.0,
+            base_wage_max=profile.labor.get("avg_weekly_wage", 620.0) / 10.0,
+        )

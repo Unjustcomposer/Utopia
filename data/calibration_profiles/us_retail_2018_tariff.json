@@ -1,0 +1,37 @@
+{
+  "_sources": {
+    "tariffs": "Pre-Section 301 baseline (Q1 2018)",
+    "cost_structure": "Historical US Census",
+    "logistics": "Historical PMA/Port reports",
+    "labor": "BLS 2018",
+    "macro": "FRED 2018"
+  },
+  "tariff_rates": {
+    "HS_8471": 0.0,
+    "HS_9403": 0.0,
+    "HS_6110": 0.0,
+    "HS_8528": 0.0,
+    "HS_8504": 0.0
+  },
+  "cost_structure": {
+    "gross_margin": 0.29,
+    "input_cost_base": 0.71,
+    "capex_percent": 0.03
+  },
+  "logistics": {
+    "mean_ocean_transit_days": 16.0,
+    "mean_container_dwell_days": 3.0,
+    "port_teu_throughput_monthly": 750000
+  },
+  "labor": {
+    "avg_weekly_wage": 580.0,
+    "unemployment_rate": 0.040,
+    "total_employment": 15800000
+  },
+  "macro": {
+    "federal_funds_rate": 0.015,
+    "cpi_annual": 251.107,
+    "personal_savings_rate": 0.07,
+    "capacity_utilization": 0.78
+  }
+}

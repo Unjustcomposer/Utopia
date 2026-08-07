@@ -201,10 +201,11 @@ class ExplainRequest(BaseModel):
 async def handle_api_explain(
     request: Request,
     req: ExplainRequest,
+    format: Optional[str] = "executive",
     user: User = Depends(get_current_user)
 ):
     try:
-        from lmm_explain import explain_firm_policy
+        from lmm_explain import explain_firm_policy, generate_executive_explanation
         from lmm_model import get_initial_lmm_params
         import jax
         import jax.numpy as jnp
@@ -220,7 +221,11 @@ async def handle_api_explain(
             jnp.array(req.macro_rate_history)
         ], axis=-1)
         
-        explanations = await asyncio.to_thread(explain_firm_policy, params, lmm_inputs)
+        if format == "raw":
+            explanations = await asyncio.to_thread(explain_firm_policy, params, lmm_inputs)
+        else:
+            explanations = await asyncio.to_thread(generate_executive_explanation, params, lmm_inputs, "supply_chain")
+            
         return sanitize_for_json(explanations)
     except Exception as e:
         logger.exception("Error in handle_api_explain")
