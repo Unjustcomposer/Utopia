@@ -24,6 +24,8 @@ class SimulationResult:
     scenario_description: str
     metrics_history: List[Dict[str, Any]]
     final_firms: List[Dict[str, Any]]
+    lmm_explanations: Optional[Dict[str, Any]] = None
+
     
     def summary(self) -> Dict[str, Any]:
         if not self.metrics_history:
@@ -283,12 +285,41 @@ class JAXSimulation:
                 "profit": float(final_state.firms.cumulative_revenue[i] - final_state.firms.cumulative_cost[i])
             })
             
+        # Generate LMM explanation based on final state
+        try:
+            from lmm_explain import generate_executive_explanation
+            # Use the first active firm or just firm 0 as representative
+            representative_firm_idx = 0
+            
+            macro_price = jnp.full(3, final_state.macro.price_index)
+            macro_rate = jnp.full(3, final_state.macro.base_rate)
+            
+            shift_amt = -(final_state.macro.memory_count % 3 + 1)
+            
+            def get_hist(arr, idx):
+                return jnp.roll(arr[idx], shift=shift_amt, axis=0)
+                
+            lmm_inputs = jnp.stack([
+                get_hist(final_state.firms.demand_history, representative_firm_idx),
+                get_hist(final_state.firms.profit_history, representative_firm_idx),
+                get_hist(final_state.firms.price_history, representative_firm_idx),
+                macro_price,
+                macro_rate
+            ], axis=-1)
+            
+            # ensure params are passed
+            # final_state.lmm_params
+            lmm_exps = generate_executive_explanation(final_state.lmm_params, lmm_inputs, vertical="supply_chain")
+        except Exception as e:
+            lmm_exps = {"error": str(e)}
+
         result = SimulationResult(
             seed=self.seed,
             config=self.config,
             scenario_description="JAX Accelerated Run",
             metrics_history=metrics_history,
-            final_firms=final_firms
+            final_firms=final_firms,
+            lmm_explanations=lmm_exps
         )
         return result
 
