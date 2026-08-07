@@ -15,8 +15,8 @@ def _government_step(state: SimState, config: SimulationConfig) -> SimState:
     new_firm_cash = firms.cash - corp_tax
     total_corp_tax = jnp.sum(corp_tax)
     
-    # Unemployment Benefits
-    unemployed_mask = ~agents.employed & agents.is_alive
+    # Pay welfare to unemployed
+    unemployed_mask = (1.0 - agents.employed) * agents.is_alive.astype(jnp.float32)
     total_unemployed = jnp.sum(unemployed_mask)
     benefits_paid = unemployed_mask * config.unemployment_benefit
     

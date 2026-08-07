@@ -42,7 +42,7 @@ def _demographics_step(state: SimState, config: SimulationConfig) -> SimState:
     new_gov_cash = state.gov.cash + wealth_delta
     
     new_budget = jnp.where(dies, config.initial_budget_min, agents.budget)
-    new_employed = jnp.where(dies, False, agents.employed)
+    new_employed = agents.employed * (1.0 - dies.astype(jnp.float32))
     new_employer_id = jnp.where(dies, -1, agents.employer_id)
     new_savings = jnp.where(dies, 0.0, agents.savings)
     new_wage = jnp.where(dies, 0.0, agents.wage)

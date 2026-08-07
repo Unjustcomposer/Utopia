@@ -69,7 +69,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
         
         past_avg_prices = jnp.full((config.num_agents, config.num_goods), config.base_wage_min)
         
-    employed = jnp.zeros(config.num_agents, dtype=jnp.bool_)
+    employed = jnp.zeros(config.num_agents, dtype=jnp.float32)
     employer_id = jnp.full(config.num_agents, -1, dtype=jnp.int32)
     
     key, subkey = jax.random.split(key)
@@ -130,7 +130,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     
     production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
     num_employees = jnp.zeros(config.num_firms, dtype=jnp.float32)
-    wage_offer = jnp.full(config.num_firms, config.base_wage_min)
+    wage_offer = jax.random.uniform(subkey, (config.num_firms,), minval=config.minimum_wage, maxval=config.minimum_wage + 5.0)
     debt = jnp.zeros(config.num_firms)
     cumulative_revenue = jnp.zeros(config.num_firms)
     cumulative_cost = jnp.zeros(config.num_firms)
@@ -243,7 +243,7 @@ def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig,
         tick_metrics = {
             "price_index": new_state.macro.price_index,
             "employment_rate": jnp.mean(new_state.agents.employed.astype(jnp.float32)),
-            "total_output": jnp.sum(new_state.firms.inventory), 
+            "total_output": jnp.sum(new_state.firms.production_capacity * new_state.firms.is_active), 
             "gini": 0.0, 
             "total_welfare": jnp.sum(new_state.agents.savings),
             "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier)
