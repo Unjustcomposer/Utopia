@@ -56,11 +56,19 @@ async def extract_tenant_for_ratelimit(request: Request, call_next):
             pass
     return await call_next(request)
 
-from prometheus_client import make_asgi_app, Counter, Histogram
-app.mount("/metrics", make_asgi_app())
+from prometheus_client import make_asgi_app, Counter, Histogram, CollectorRegistry
 
-SIMULATION_COUNTER = Counter("nexusai_simulations_total", "Total number of simulations run", ["type"])
-SIMULATION_DURATION = Histogram("nexusai_simulation_duration_seconds", "Duration of simulations")
+_metrics_registry = CollectorRegistry()
+
+try:
+    SIMULATION_COUNTER = Counter("nexusai_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
+    SIMULATION_DURATION = Histogram("nexusai_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+except ValueError:
+    from prometheus_client import REGISTRY
+    SIMULATION_COUNTER = REGISTRY._names_to_collectors.get("nexusai_simulations_total") or Counter("nexusai_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
+    SIMULATION_DURATION = REGISTRY._names_to_collectors.get("nexusai_simulation_duration_seconds") or Histogram("nexusai_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+
+app.mount("/metrics", make_asgi_app(registry=_metrics_registry))
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
