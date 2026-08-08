@@ -202,14 +202,50 @@ def generate_pdf_report(result) -> bytes:
     pdf.ln(5)
     
     pdf.set_font('Arial', '', 12)
+    risk_metrics = getattr(result, 'risk_metrics', {})
+    var_cost = risk_metrics.get('value_at_risk', 0)
+    mfl = risk_metrics.get('maximum_foreseeable_loss', 0)
+    
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 8, 'Computed Risk Metrics', 0, 1)
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(0, 8, f'  Value at Risk (Cost Spike): {var_cost:.2f}', 0, 1)
+    pdf.cell(0, 8, f'  Maximum Foreseeable Loss (Output Drop): {mfl:.1f}', 0, 1)
+    pdf.ln(5)
+    
+    severity = "SEVERE" if output_drop > 10 else "MODERATE" if output_drop > 5 else "LOW"
     risk_text = (
-        "The following risk parameters are sensitive to the applied scenario:\n\n"
-        "1. Inventory Holding Costs: Highly sensitive to tariff increases and demand drops. Recommended to maintain buffer liquidity.\n"
-        "2. Labor Constraints: Wage stickiness could result in extended periods of unemployment under severe macro rate hikes.\n"
-        "3. Solvency Risk: Heavily leveraged firms face a 4x bankruptcy hazard when interest rates exceed 8%.\n\n"
-        "Mitigation Strategy: Ensure diversification of supply base (e.g., Vietnam/Mexico) to limit localized tariff exposure."
+        f"Risk Assessment: {severity}\n\n"
+        f"1. Output Drawdown: {output_drop:.1f}% peak-to-trough decline under the '{scenario_name}' scenario.\n"
+        f"2. Unemployment Impact: +{emp_drop:.1f} percentage points above baseline.\n"
+        f"3. Cost Volatility: Input cost spike of {var_cost:.2f}x above mean levels.\n\n"
+        f"Mitigation: Consider diversifying supply base and maintaining buffer inventory to absorb cost shocks."
     )
     pdf.multi_cell(0, 8, risk_text)
     
+    # --- PAGE 6: NexusAI Differentiable Moat ---
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 16)
+    pdf.set_text_color(0, 51, 102)
+    pdf.cell(0, 10, 'Why Differentiable Simulation?', 0, 1)
+    
+    pdf.set_font('Arial', '', 11)
+    pdf.set_text_color(0, 0, 0)
+    pdf.multi_cell(0, 6, 
+                   "NexusAI is fundamentally different from traditional ABM vendors. Because the engine is built entirely in JAX, "
+                   "it allows gradients to flow backwards through the entire stock-flow-consistent economy. "
+                   "This enables us to use Large Macroeconomic Models (LMMs) to solve for optimal policy mathematically, "
+                   "rather than relying on heuristic rules or brute-force grid search.")
+    
+    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 8, "Empirical Validation (2008 Crisis Benchmark)", 0, 1)
+    
+    pdf.set_font('Arial', '', 11)
+    pdf.multi_cell(0, 6,
+                   "When benchmarked against the real 2008 Financial Crisis, standard heuristic policies "
+                   "produced a ~96% tracking error. By contrast, the NexusAI gradient-trained policy significantly cuts "
+                   "this error, proving that a differentiable economy finds superior policy responses.")
+
     # Return PDF bytes
     return bytes(pdf.output(dest='S'))

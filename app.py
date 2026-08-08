@@ -7,6 +7,9 @@ from simulation_jax import run_simulation
 from scenarios import SCENARIO_LIST
 from report_generator import generate_pdf_report
 from telematics_connectors import PhysicalShockCompiler
+from checkpoint import load_lmm_checkpoint
+
+GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
 
 st.set_page_config(page_title="NexusAI Tariff Impact", page_icon="🚢", layout="wide")
 
@@ -53,20 +56,24 @@ config = SimulationConfig(
 
 if 'metrics_history' not in st.session_state:
     st.session_state.metrics_history = None
+if 'last_result' not in st.session_state:
+    st.session_state.last_result = None
 
 col1, col2 = st.columns([1, 1])
 
 with col1:
     if st.button("🚀 Run Supply Chain Stress Test", type="primary", use_container_width=True):
         with st.spinner(f"Ingesting ERP State & Running '{scenario_name}' ..."):
-            result = run_simulation(config=config, seed=42, scenario=scenario_name, telematics_multiplier=st.session_state.telematics_multiplier)
+            lmm_p = GLOBAL_LMM_PARAMS if config.firm_behavior_mode == 0 else None
+            result = run_simulation(config=config, seed=42, scenario=scenario_name, telematics_multiplier=st.session_state.telematics_multiplier, lmm_params=lmm_p)
             st.session_state.metrics_history = result.metrics_history
+            st.session_state.last_result = result
             st.success("Simulation Complete!")
 
 with col2:
-    if st.session_state.metrics_history:
+    if st.session_state.last_result:
         # Generate PDF
-        pdf_bytes = generate_pdf_report(scenario_name, config.__dict__, st.session_state.metrics_history)
+        pdf_bytes = generate_pdf_report(st.session_state.last_result)
         st.download_button(
             label="📄 Download 2-Page PDF Report",
             data=pdf_bytes,
@@ -90,7 +97,7 @@ if st.session_state.metrics_history:
         
     with c2:
         st.markdown("#### Supplier Solvency Rate (%)")
-        st.line_chart(df["employment_rate"], color="#10b981")
+        st.line_chart(1.0 - df["unemployment_rate"], color="#10b981")
         
     with c3:
         st.markdown("#### Consumer Price Impact")

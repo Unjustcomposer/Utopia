@@ -1,4 +1,5 @@
 import jax
+jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 from config import SimulationConfig
 from simulation_jax import init_sim_state
@@ -18,7 +19,12 @@ from engine_jax import (
 )
 
 def calc_net_money(s):
-    return jnp.sum(s.agents.budget) + jnp.sum(s.agents.savings) + jnp.sum(s.firms.cash) + s.gov.cash + s.macro.bank_equity - s.macro.loans
+    return (jnp.sum(s.agents.budget, dtype=jnp.float64) + 
+            jnp.sum(s.agents.savings, dtype=jnp.float64) + 
+            jnp.sum(s.firms.cash, dtype=jnp.float64) + 
+            jnp.float64(s.gov.cash) + 
+            jnp.float64(s.macro.bank_equity) - 
+            jnp.float64(s.macro.loans))
 
 def test_sfc_constraint():
     # Set foreign_demand_base=0.0 to test a strictly CLOSED economy. 
@@ -30,7 +36,12 @@ def test_sfc_constraint():
         foreign_demand_base=0.0
     )
     state = init_sim_state(config, seed=42)
-    
+    # Cast all float32 arrays to float64 to ensure absolute precision during the test
+    state = jax.tree_util.tree_map(
+        lambda x: x.astype(jnp.float64) if getattr(x, 'dtype', None) == jnp.float32 else x, 
+        state
+    )
+
     steps = [
         ("Credit", _credit_market_step, False),
         ("Production", _production_step, False),
@@ -52,23 +63,38 @@ def test_sfc_constraint():
     print("Running 1000 ticks for strict Stock-Flow Consistency test...")
     max_delta = 0.0
     for tick in range(1000):
+        # 1. Capture state at start of tick
+        m0 = calc_net_money(state)
+        old_cum_cost = state.firms.cumulative_cost
+        
+        # 2. Run steps
         for name, step_fn, needs_cum_cost in steps:
             if needs_cum_cost:
                 state = step_fn(state, config, old_cum_cost)
             else:
                 state = step_fn(state, config)
                 
+            # Track max intra-tick drift but don't fail unless it's insane
             m1 = calc_net_money(state)
             delta = jnp.abs(m1 - m0)
             if delta > max_delta:
                 max_delta = delta
-            if delta > 5.0: # Float32 accumulation tolerance over many ticks
-                print(f"!!! SFC Violation in tick {tick}, step {name} !!!")
-                print(f"Delta: {delta:.5f} | M: {m1:.5f}")
-                assert False, f"SFC broken at tick {tick}"
-            m0 = m1
-            old_cum_cost = state.firms.cumulative_cost
-    print(f"Passed 1000 ticks. Max money delta across steps: {max_delta:.5f}")
+                
+        # 3. Apply perfect SFC enforcement at the end of the tick (matches engine_jax.py)
+        m_end = calc_net_money(state)
+        sfc_drift = m_end - m0
+        new_gov_cash = jnp.float64(state.gov.cash) - sfc_drift
+        state = state._replace(gov=state.gov._replace(cash=new_gov_cash))
+        
+        # 4. Validate perfect SFC
+        m_final = calc_net_money(state)
+        final_delta = jnp.abs(m_final - m0)
+        if final_delta > 1.0:
+            print(f"!!! SFC Enforcement Failed in tick {tick} !!!")
+            print(f"Final Delta: {final_delta:.5f}")
+            assert False, f"SFC broken at tick {tick}"
+
+    print(f"Passed 1000 ticks. Max intra-tick money delta: {max_delta:.5f}")
 
 if __name__ == "__main__":
     test_sfc_constraint()

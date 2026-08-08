@@ -1,7 +1,7 @@
 import numpy as np
 import climate_shocks
 
-def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multiplier: float = 1.0) -> np.ndarray:
+def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multiplier: float = 1.0, seed: int = 42) -> np.ndarray:
     """
     Generates a matrix of shape (num_ticks, 5) where columns are:
     0: Interest Rate Hike (additive)

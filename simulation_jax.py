@@ -38,7 +38,7 @@ class SimulationResult:
             "mean_welfare": sum(m.get("total_welfare", 0.0) for m in self.metrics_history) / n,
         }
 
-def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None) -> SimState:
+def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, lmm_params: Optional[dict] = None) -> SimState:
     """Initializes the JAX PyTree state."""
     key = jax.random.PRNGKey(seed)
     
@@ -201,7 +201,8 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     
     # Initialize LMM Transformer Weights
     key, subkey = jax.random.split(key)
-    lmm_params = get_initial_lmm_params(subkey)
+    if lmm_params is None:
+        lmm_params = get_initial_lmm_params(subkey)
     
     return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, rng_key=key, lmm_params=lmm_params)
 
@@ -239,12 +240,33 @@ def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig,
         
         new_state = simulation_step(shocked_state, config)
         
+        # Calculate true production for GDP
+        def total_firm_skill(firm_id):
+            return jnp.sum(jnp.where(new_state.agents.employer_id == firm_id, new_state.agents.skill, 0.0))
+        firm_ids = jnp.arange(new_state.firms.cash.shape[0])
+        effective_labor = jax.vmap(total_firm_skill)(firm_ids)
+        labor_output = effective_labor * config.productivity_per_worker
+        capacity = new_state.firms.capital_goods * 10.0
+        raw_output = jnp.minimum(capacity, labor_output)
+        raw_output = jnp.where(new_state.firms.is_active, raw_output, 0.0)
+        production = raw_output / jnp.maximum(new_state.firms.input_cost_multiplier, 0.01)
+        gdp = jnp.sum(production * new_state.firms.price)
+        
+        # Calculate Gini coefficient on agent budgets
+        budgets = jnp.sort(new_state.agents.budget)
+        n = budgets.shape[0]
+        index = jnp.arange(1, n + 1)
+        gini = (2.0 * jnp.sum(index * budgets) / (n * jnp.sum(budgets) + 1e-8)) - (n + 1.0) / n
+        gini = jnp.maximum(0.0, gini) # Ensure non-negative
+
         # Calculate tick metrics to return as stacked arrays
         tick_metrics = {
             "price_index": new_state.macro.price_index,
             "employment_rate": jnp.mean(new_state.agents.employed.astype(jnp.float32)),
-            "total_output": jnp.sum(new_state.firms.production_capacity * new_state.firms.is_active), 
-            "gini": 0.0, 
+            "total_output": gdp, 
+            "gdp_proxy": gdp,
+            "inflation_tick": new_state.macro.price_index,
+            "gini": gini, 
             "total_welfare": jnp.sum(new_state.agents.savings),
             "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier)
         }
@@ -262,6 +284,7 @@ class JAXSimulation:
         scenario: Optional[str] = "baseline",
         baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None,
         telematics_multiplier: float = 1.0,
+        lmm_params: Optional[dict] = None,
     ) -> None:
         self.config = config
         
@@ -273,7 +296,7 @@ class JAXSimulation:
             
         self.scenario = scenario
         self.baseline_state_overrides = baseline_state_overrides
-        self.initial_state = init_sim_state(self.config, self.seed, self.baseline_state_overrides)
+        self.initial_state = init_sim_state(self.config, self.seed, self.baseline_state_overrides, lmm_params=lmm_params)
         
         # Generate shocks
         from scenarios import generate_shock_matrix
@@ -359,6 +382,6 @@ class JAXSimulation:
         setattr(result, 'risk_metrics', risk_metrics)
         return result
 
-def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, telematics_multiplier: float = 1.0) -> SimulationResult:
-    sim = JAXSimulation(config=config, seed=seed, scenario=scenario, baseline_state_overrides=baseline_state_overrides, telematics_multiplier=telematics_multiplier)
+def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, telematics_multiplier: float = 1.0, lmm_params: Optional[dict] = None) -> SimulationResult:
+    sim = JAXSimulation(config=config, seed=seed, scenario=scenario, baseline_state_overrides=baseline_state_overrides, telematics_multiplier=telematics_multiplier, lmm_params=lmm_params)
     return sim.run()

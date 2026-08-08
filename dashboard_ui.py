@@ -1,8 +1,14 @@
 import jwt
 import os
 
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecretkey")
-TOKEN = jwt.encode({"sub": "admin", "tenant_id": "tenant_1"}, JWT_SECRET, algorithm="HS256")
+JWT_SECRET = os.getenv("JWT_SECRET")
+DEV_MODE = os.getenv("NEXUSAI_DEV_MODE", "false").lower() == "true"
+if JWT_SECRET:
+    TOKEN = jwt.encode({"sub": "admin", "tenant_id": "tenant_1"}, JWT_SECRET, algorithm="HS256")
+elif DEV_MODE:
+    TOKEN = "mock-token"
+else:
+    TOKEN = ""  # No token — user must authenticate via Auth0
 
 DASHBOARD_HTML = f"""
 <!DOCTYPE html>

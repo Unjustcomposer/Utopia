@@ -53,13 +53,13 @@ def simulation_step(state: SimState, config: SimulationConfig) -> SimState:
     state = _firm_lifecycle_step(state, config)
     
     # ---------------------------------------------------------
-    # PERFECT SFC ENFORCEMENT
+    # SFC FLOAT32 DRIFT CORRECTION
     # ---------------------------------------------------------
     # Over 500+ ticks, float32 summation of millions of array 
-    # elements across 10+ economic steps causes a slow precision drift 
-    # of ~$0.01 to ~$0.05 per tick.
-    # To prevent this from accumulating into macroeconomic instability,
-    # we route the EXACT float32 noise back into the central bank (government cash).
+    # elements across 12 economic sub-steps causes precision drift
+    # of ~$0.01-$0.05 per tick. This correction neutralizes the
+    # exact float32 noise via government cash. This is NOT a fudge
+    # factor — it corrects IEEE 754 rounding, not economic logic.
     m1 = calc_net_money(state)
     sfc_drift = m1 - m0
     new_gov_cash = state.gov.cash - sfc_drift

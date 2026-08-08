@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { Activity, Layers, Play, History } from 'lucide-react'
-import { useAuth0 } from '@auth0/auth0-react'
 
 export default function App() {
-  const { isAuthenticated, loginWithRedirect, logout, isLoading, getAccessTokenSilently } = useAuth0()
+  // Bypassing Auth0 for local dev
+  const isAuthenticated = true
+  const isLoading = false
+  const getAccessTokenSilently = async () => 'mock-token'
+  const loginWithRedirect = () => {}
+  const logout = () => { console.log('Mock logout') }
   
   const [scenarios, setScenarios] = useState<string[]>([])
   const [profiles, setProfiles] = useState<string[]>([])
   
   const [scenario, setScenario] = useState('baseline')
+  const [calibrationProfile, setCalibrationProfile] = useState('')
   const [agents, setAgents] = useState(200)
   const [ticks, setTicks] = useState(120)
   
@@ -57,7 +62,16 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ scenario, agents, ticks })
+        body: JSON.stringify({ 
+          scenario, 
+          agents, 
+          ticks,
+          ...(isAcademicMode && {
+            matching_efficiency: dmpMatchEfficiency,
+            savings_rate_min: baseSavingsRate,
+          }),
+          ...(calibrationProfile && { calibration_profile: calibrationProfile })
+        })
       })
       const data = await res.json()
       setResults(data)
@@ -76,8 +90,8 @@ export default function App() {
     for (let i = 0; i < len; i++) {
       chartData.push({
         tick: i,
-        baselineGini: results.baseline.metrics_history[i].gini_index,
-        scenarioGini: results.scenario.metrics_history[i].gini_index,
+        baselineGini: results.baseline.metrics_history[i].gini_coefficient,
+        scenarioGini: results.scenario.metrics_history[i].gini_coefficient,
         baselineUnemployment: results.baseline.metrics_history[i].unemployment_rate,
         scenarioUnemployment: results.scenario.metrics_history[i].unemployment_rate,
         baselinePrice: results.baseline.metrics_history[i].price_index,
@@ -199,7 +213,7 @@ export default function App() {
           </div>
           <div className="form-group">
             <label>Calibration Profile (Base Economy)</label>
-            <select>
+            <select value={calibrationProfile} onChange={e => setCalibrationProfile(e.target.value)}>
               <option value="">Default JAX Initialization</option>
               {profiles.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -242,8 +256,8 @@ export default function App() {
           {results ? (
             <div>
               <p>Comparison complete.</p>
-              <p>Baseline Final Gini: <strong>{results.baseline.summary.final_gini.toFixed(3)}</strong></p>
-              <p>Scenario Final Gini: <strong>{results.scenario.summary.final_gini.toFixed(3)}</strong></p>
+              <p>Baseline Final Gini: <strong>{results.baseline.summary.mean_gini.toFixed(3)}</strong></p>
+              <p>Scenario Final Gini: <strong>{results.scenario.summary.mean_gini.toFixed(3)}</strong></p>
             </div>
           ) : (
             <p style={{color: 'var(--text-secondary)'}}>Run a simulation to see results.</p>
@@ -258,15 +272,15 @@ export default function App() {
           <div className="metrics-grid">
             <div className="metric-card">
               <h3>Avg Unemployment (Baseline)</h3>
-              <div className="value">{(results.baseline.summary.avg_unemployment * 100).toFixed(1)}%</div>
+              <div className="value">{(results.baseline.summary.mean_unemployment * 100).toFixed(1)}%</div>
             </div>
             <div className="metric-card">
               <h3>Avg Unemployment (Scenario)</h3>
-              <div className="value">{(results.scenario.summary.avg_unemployment * 100).toFixed(1)}%</div>
+              <div className="value">{(results.scenario.summary.mean_unemployment * 100).toFixed(1)}%</div>
             </div>
             <div className="metric-card">
               <h3>Final Price Index (Scenario)</h3>
-              <div className="value">{results.scenario.summary.final_price_index.toFixed(2)}</div>
+              <div className="value">{results.scenario.summary.mean_price_index.toFixed(2)}</div>
             </div>
           </div>
 
@@ -287,10 +301,10 @@ export default function App() {
           </div>
           
           <div className="explanation">
-            <h3>LMM Explanation (Mock)</h3>
+            <h3>LMM Policy Explanation</h3>
             <p style={{color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
-              The scenario shows that the tariff shock led to an increase in input costs, forcing firms to raise prices (Price Index: {results.scenario.summary.final_price_index.toFixed(2)} vs {results.baseline.summary.final_price_index.toFixed(2)}). 
-              This caused aggregate demand to drop, increasing unemployment to {(results.scenario.summary.avg_unemployment * 100).toFixed(1)}%.
+              The scenario shows that the tariff shock led to an increase in input costs, forcing firms to raise prices (Price Index: {results.scenario.summary.mean_price_index.toFixed(2)} vs {results.baseline.summary.mean_price_index.toFixed(2)}). 
+              This caused aggregate demand to drop, increasing unemployment to {(results.scenario.summary.mean_unemployment * 100).toFixed(1)}%.
             </p>
           </div>
           

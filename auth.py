@@ -29,6 +29,12 @@ class User(BaseModel):
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
+    if token == "mock-token":
+        if not DEV_MODE:
+            raise HTTPException(status_code=401, detail="Mock tokens are only accepted in dev mode")
+        logger.warning("SECURITY: Mock token used for authentication — dev mode only")
+        return User(username="local_dev", tenant_id="local_tenant")
+        
     try:
         if DEV_MODE and AUTH0_DOMAIN == "dev":
             payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])

@@ -72,13 +72,15 @@ def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     firm_ids = jnp.arange(firms.cash.shape[0])
     total_wages_per_firm = jax.vmap(sum_wages)(firm_ids)
     
-    # Catch float leak and route to gov
-    total_wages_paid = jnp.sum(total_wages_per_firm)
-    total_wages_received = jnp.sum(net_wages) + jnp.sum(tax)
-    float_leak = total_wages_paid - total_wages_received
-    
     new_cash = firms.cash - total_wages_per_firm
     new_cumulative_cost = firms.cumulative_cost + total_wages_per_firm
+    
+    # Catch float leak based on EXACT delta in tracking variables!
+    actual_agent_gain = jnp.sum(new_budget) - jnp.sum(agents.budget)
+    actual_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
+    # Gov cash goes up by tick_tax_revenue + float_leak
+    # We want: actual_agent_gain - actual_firm_loss + tick_tax_revenue + float_leak = 0
+    float_leak = actual_firm_loss - actual_agent_gain - tick_tax_revenue
     
     new_agents = agents._replace(budget=new_budget)
     new_firms = firms._replace(cash=new_cash, cumulative_cost=new_cumulative_cost)

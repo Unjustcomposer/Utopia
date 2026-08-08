@@ -15,7 +15,9 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
           f"{config.num_ticks} ticks, seed={args.seed}")
     
-    result = run_simulation(config=config, seed=args.seed)
+    from checkpoint import load_lmm_checkpoint
+    lmm_params = load_lmm_checkpoint()
+    result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
     
     print("\n=== SIMULATION METRICS (simulated) ===")
     if result.metrics_history:
@@ -36,7 +38,9 @@ def cmd_demo(args: argparse.Namespace) -> None:
     """Run a quick visual demo of the simulator."""
     print("Running Interactive Demo Mode...")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
-    result = run_simulation(config=config, seed=args.seed)
+    from checkpoint import load_lmm_checkpoint
+    lmm_params = load_lmm_checkpoint()
+    result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
     final = result.metrics_history[-1] if result.metrics_history else {}
     print(f"\n[DEMO COMPLETE] Output: {final.get('total_output', 0):.2f} | Gini: {final.get('gini', 0):.4f}")
 
@@ -95,6 +99,11 @@ def cmd_report(args: argparse.Namespace) -> None:
         
     print(f"Report successfully generated and saved to: {out_filename}")
 
+def cmd_backtest(args: argparse.Namespace) -> None:
+    """Run the 2008 Financial Crisis backtest commercial demo."""
+    from backtest_2008 import run_comparative_backtest
+    run_comparative_backtest()
+
 def main():
     parser = argparse.ArgumentParser(
         prog="NexusAI",
@@ -145,6 +154,10 @@ def main():
     p_report.add_argument("--ticks", type=int, default=120)
     p_report.add_argument("--agents", type=int, default=1000)
     p_report.set_defaults(func=cmd_report)
+
+    # ── backtest ───────────────────────────────────────────────────────
+    p_backtest = subparsers.add_parser("backtest", help="Run the 2008 historical validation demo")
+    p_backtest.set_defaults(func=cmd_backtest)
 
     args = parser.parse_args()
     if args.command is None:

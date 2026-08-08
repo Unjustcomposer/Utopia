@@ -12,6 +12,17 @@ The system also features SAP/Oracle-shaped connector interfaces with structurall
 
 ---
 
+## ⚡ The 5-Minute Commercial Proof ⚡
+
+The most powerful way to understand NexusAI's core moat is to run the automated commercial proof. This runs a benchmark speedup test, trains the model on diverse economic shocks, and validates the policy against actual FRED 2008 crash data.
+
+```bash
+uv run python demo_commercial.py
+```
+*Observe the 600x execution speedup over standard Python ABMs, and the drastically improved tracking error of the gradient-trained LMM against the 2008 crisis.*
+
+---
+
 ## The Edge: Full Differentiability + Stock-Flow Consistency
 
 Our primary innovation is not complex LLM agent roleplay, but structural financial realism. `jax.grad` flows from the macroeconomic objective (e.g. maximizing GDP while curbing inflation) backward through the *entire economy*—wages, taxes, sales, and bankruptcy mechanics—into a Learned Firm Policy Network.

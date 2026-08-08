@@ -96,10 +96,21 @@ async def get_calibration_profiles(user: User = Depends(get_current_user)):
 
 @app.get("/api/erp/status")
 async def get_erp_status(user: User = Depends(get_current_user)):
+    from erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
+    sap = SAP_ERP_Client()
+    oracle = Oracle_NetSuite_Client()
     return {
-        "SAP_ECC": {"mode": "mock", "reason": "No valid credentials provided for live system"},
-        "Oracle_NetSuite": {"mode": "mock", "reason": "No valid credentials provided for live system"}
+        "SAP_ECC": {"mode": "mock" if sap.is_mock_mode else "live", "connected": sap.is_mock_mode is not True},
+        "Oracle_NetSuite": {"mode": "mock" if oracle.is_mock_mode else "live", "connected": oracle.is_mock_mode is not True},
+        "lmm_checkpoint": {"loaded": GLOBAL_LMM_PARAMS is not None},
     }
+
+@app.post("/api/admin/reload-model")
+async def reload_model(user: User = Depends(get_current_user)):
+    global GLOBAL_LMM_PARAMS
+    GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
+    loaded = GLOBAL_LMM_PARAMS is not None
+    return {"status": "reloaded" if loaded else "no_checkpoint_found", "loaded": loaded}
 
 @app.get("/api/scenarios")
 async def get_scenarios(user: User = Depends(get_current_user)):
@@ -144,8 +155,9 @@ async def handle_api_compare(
             use_us_calibration=req.use_us_calibration,
             firm_behavior_mode=req.firm_behavior_mode
         )
-        baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline")
-        scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
+        lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
+        baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline", lmm_p)
+        scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario, lmm_p)
         
         baseline_result, scenario_result = await asyncio.gather(baseline_task, scenario_task)
         
@@ -203,12 +215,12 @@ class RunRequest(BaseModel):
     use_us_calibration: bool = False
     seed: int = 42
     scenario: str = "baseline"
-    firm_behavior_mode: int = Field(default=2, ge=0, le=2)
+    firm_behavior_mode: int = Field(default=0, ge=0, le=2)
 
-def _ray_run_simulation(config, seed, scenario="baseline"):
+def _ray_run_simulation(config, seed, scenario="baseline", lmm_params=None):
     from simulation_jax import run_simulation
     # We use the new JAX engine directly
-    return run_simulation(config=config, seed=seed, scenario=scenario)
+    return run_simulation(config=config, seed=seed, scenario=scenario, lmm_params=lmm_params)
 
 @app.post("/api/run")
 @limiter.limit("10/minute")
@@ -230,7 +242,8 @@ async def handle_api_run(
         )
         
         with SIMULATION_DURATION.time():
-            result = await asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
+            lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
+            result = await asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario, lmm_p)
             
         SIMULATION_COUNTER.labels(type="run").inc()
         
@@ -291,7 +304,8 @@ async def handle_api_experiment(
         async def run_scenario(scenario_name):
             outputs = []
             for i in range(req.num_seeds):
-                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name)
+                lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
+                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name, lmm_p)
                 if res.metrics_history:
                     outputs.append(res.metrics_history[-1].get('total_output', 0))
             return np.mean(outputs) if outputs else 0, np.std(outputs) if outputs else 0
@@ -363,7 +377,7 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_curr
         logger.info("Triggering Global Baseline Compilation...")
         config = SimulationConfig()
         compiler = GlobalBaselineCompiler(config)
-        overrides = await asyncio.to_thread(compiler.compile_baseline)
+        overrides, is_fallback = await asyncio.to_thread(compiler.compile_baseline)
         
         logger.info("Baseline compiled successfully. Initiating JAX Simulation with overrides.")
         from simulation_jax import run_simulation
@@ -379,7 +393,8 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_curr
         
         return {
             "status": "success", 
-            "message": "Global baseline ingested and simulated successfully.",
+            "message": "Global baseline compiled and simulated.",
+            "is_fallback": is_fallback,
             "metrics": result.summary()
         }
     except Exception as e:

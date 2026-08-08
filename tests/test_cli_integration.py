@@ -38,3 +38,30 @@ def test_cli_search():
     )
     assert result.returncode == 0
     assert "ROBUSTNESS" in result.stdout
+
+@pytest.mark.integration
+def test_cli_backtest():
+    result = subprocess.run(
+        [sys.executable, "main.py", "backtest"],
+        capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0
+    assert "Tracking Error" in result.stdout
+
+@pytest.mark.integration
+def test_cli_report():
+    result = subprocess.run(
+        [sys.executable, "main.py", "report", "--scenario", "baseline"],
+        capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0
+    assert "NexusAI_Report_baseline.pdf" in result.stdout
+
+@pytest.mark.integration
+def test_cli_demo():
+    result = subprocess.run(
+        [sys.executable, "main.py", "demo", "--ticks", "5"],
+        capture_output=True, text=True, timeout=120
+    )
+    assert result.returncode == 0
+    assert "Executing Full Feature Demo" in result.stdout
