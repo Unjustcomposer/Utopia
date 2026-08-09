@@ -102,8 +102,8 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 def cmd_backtest(args: argparse.Namespace) -> None:
     """Run the 2008 Financial Crisis backtest commercial demo."""
-    from backtest_2008 import run_comparative_backtest
-    run_comparative_backtest()
+    from backtest_historical import run_backtest
+    run_backtest("2008")
 
 def main():
     parser = argparse.ArgumentParser(
