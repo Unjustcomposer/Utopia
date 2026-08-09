@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utopia | Differentiable Macroeconomic Engine</title>
+    <meta name="description" content="End-to-end differentiable macroeconomic simulation running 100K agents in 0.3 seconds.">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-grid"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <nav>
+        <div class="logo">Utopia</div>
+        <div class="nav-links">
+            <a href="https://github.com/omsingh/utopia" target="_blank">GitHub</a>
+            <a href="mailto:founders@utopia-engine.ai">Contact</a>
+        </div>
+    </nav>
+
+    <main class="hero">
+        <div class="hero-content">
+            <div class="badge">v0.2.0 is Live</div>
+            <h1>Simulate the Economy.<br><span class="gradient-text">Optimize Policy via Gradient Descent.</span></h1>
+            
+            <p class="subtitle">
+                Traditional macroeconomic simulations are black boxes. Utopia is an end-to-end differentiable JAX engine that runs 100K agents in 0.3 seconds and learns directly from historical crises.
+            </p>
+
+            <div class="metric-card glass">
+                <div class="metric-label">FRED 2008 Crash Tracking Error</div>
+                <div class="metric-value">&lt; 15%</div>
+                <div class="metric-subtext">Verified against actual historical GDP & Unemployment</div>
+            </div>
+
+            <div class="cta-group">
+                <a href="https://github.com/omsingh/utopia" class="btn primary">View the Open Source Engine</a>
+                <div class="terminal-mock">
+                    <code>$ utopia train --scenario 2008 --seed 42</code>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <section class="features">
+        <div class="feature-grid">
+            <div class="feature-card glass">
+                <div class="icon">🔄</div>
+                <h3>Stock-Flow Consistent</h3>
+                <p>No money magically created or destroyed without central bank action. Strict accounting identity enforced every tick.</p>
+            </div>
+            <div class="feature-card glass">
+                <div class="icon">⚡</div>
+                <h3>JAX Accelerated</h3>
+                <p>600x execution speedup over standard Python ABMs. Simulates 100,000 agents in sub-second times on standard hardware.</p>
+            </div>
+            <div class="feature-card glass">
+                <div class="icon">🧠</div>
+                <h3>Learned Policy</h3>
+                <p>Firm behavior modeled by a differentiable Transformer trained via backprop-through-simulation directly on macro objectives.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="team-info">
+            <p>Built by 
+                <a href="https://linkedin.com/in/omsingh" target="_blank" class="team-member">Omsingh</a> and 
+                <a href="https://github.com/Antigravity" target="_blank" class="team-member">Antigravity</a>
+            </p>
+            <a href="mailto:founders@utopia-engine.ai" class="contact-email">founders@utopia-engine.ai</a>
+        </div>
+        <p class="copyright">&copy; 2026 Utopia Engine. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>
