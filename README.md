@@ -1,6 +1,6 @@
-# NexusAI: Differentiable Macroeconomic Simulation
+# Utopia: Differentiable Macroeconomic Simulation
 
-NexusAI is a gradient-based (JAX/autodiff) macroeconomic simulation engine. Our core thesis relies on combining **stock-flow consistency (SFC)** with **end-to-end differentiability**. By enabling gradients to flow backward through the entire simulated economy—from a macroeconomic loss function through firm policies, credit markets, labor matching, and consumption—we train a Differentiable Firm Policy Network via backpropagation-through-simulation.
+Utopia is a gradient-based (JAX/autodiff) macroeconomic simulation engine. Our core thesis relies on combining **stock-flow consistency (SFC)** with **end-to-end differentiability**. By enabling gradients to flow backward through the entire simulated economy—from a macroeconomic loss function through firm policies, credit markets, labor matching, and consumption—we train a Differentiable Firm Policy Network via backpropagation-through-simulation.
 
 It is empirically calibrated against US demographic data and validated against FRED 2008 historical data, featuring quantified error tracking against actual historical GDP and unemployment figures. The JAX-compiled engine demonstrates a 600x performance speedup over traditional object-oriented Python frameworks (like Mesa), processing 100K agents over 50 ticks in sub-second times.
 
@@ -14,7 +14,7 @@ The system also features SAP/Oracle-shaped connector interfaces with structurall
 
 ## ⚡ The 5-Minute Commercial Proof ⚡
 
-The most powerful way to understand NexusAI's core moat is to run the automated commercial proof. This runs a benchmark speedup test, trains the model on diverse economic shocks, and validates the policy against actual FRED 2008 crash data.
+The most powerful way to understand Utopia's core moat is to run the automated commercial proof. This runs a benchmark speedup test, trains the model on diverse economic shocks, and validates the policy against actual FRED 2008 crash data.
 
 ```bash
 uv run python demo_commercial.py
@@ -29,7 +29,7 @@ Our primary innovation is not complex LLM agent roleplay, but structural financi
 
 **What makes this different from Mesa / NetLogo / classical ABMs:**
 
-| Feature | Classical ABM | NexusAI |
+| Feature | Classical ABM | Utopia |
 |---------|--------------|---------|
 | Gradient through economy | ❌ Not possible | ✅ `jax.value_and_grad` end-to-end |
 | Stock-flow consistency | ❌ Rarely checked | ✅ Enforced every tick (Δ < $0.01) |
@@ -58,21 +58,39 @@ Our primary innovation is not complex LLM agent roleplay, but structural financi
 
 ## Quick Start
 
+### Native Installation
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Create a clean virtual environment and install as a package
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e .
 
+# The 'utopia' CLI is now available globally in this venv.
+utopia run --seed 42 --ticks 120
+```
+
+### Docker Deployment
+```bash
+# Starts the Postgres DB and the FastAPI server at http://localhost:8765
+docker-compose up --build
+
+# To also start the optional Streamlit dashboard at http://localhost:8501
+docker-compose --profile dashboard up --build
+```
+
+### CLI Commands (Requires Native Installation)
+```bash
 # Run a single simulation
-python main.py run --seed 42 --ticks 120
+utopia run --seed 42 --ticks 120
 
 # Train the Differentiable Firm Policy Network (LMM)
-python main.py train --seed 42 --epochs 100 --ticks 50
+utopia train --seed 42 --epochs 100 --ticks 50
 
 # Run an interactive demo
-python main.py demo --seed 42 --ticks 30
+utopia demo --seed 42 --ticks 30
 
 # Run A/B testing between policy scenarios (e.g., baseline vs tariffs)
-python main.py experiment --scenario-a baseline --scenario-b tariffs --ticks 120
+utopia experiment --scenario-a baseline --scenario-b tariffs --ticks 120
 
 # Run the API server & React Frontend
 uvicorn server:app --reload

@@ -2,18 +2,15 @@ import streamlit as st
 import pandas as pd
 import jax
 
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import run_simulation
-from nexusai.core.scenarios import SCENARIO_LIST
-from nexusai.enterprise.report_generator import generate_pdf_report
-from nexusai.connectors.telematics_connectors import PhysicalShockCompiler
-from nexusai.core.checkpoint import load_lmm_checkpoint
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import run_simulation
+from utopia.core.scenarios import SCENARIO_LIST
+from utopia.enterprise.report_generator import generate_pdf_report
+from utopia.connectors.telematics_connectors import PhysicalShockCompiler
 
-GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
+st.set_page_config(page_title="Utopia Tariff Impact", page_icon="🚢", layout="wide")
 
-st.set_page_config(page_title="NexusAI Tariff Impact", page_icon="🚢", layout="wide")
-
-st.title("NexusAI: Automated Tariff Impact Dashboard")
+st.title("Utopia: Automated Tariff Impact Dashboard")
 st.markdown("**(Simulated)** Enterprise Supply Chain Stress Tester with Native SAP/Oracle ERP Integration.")
 
 # Sidebar Configuration
@@ -64,8 +61,7 @@ col1, col2 = st.columns([1, 1])
 with col1:
     if st.button("🚀 Run Supply Chain Stress Test", type="primary", use_container_width=True):
         with st.spinner(f"Ingesting ERP State & Running '{scenario_name}' ..."):
-            lmm_p = GLOBAL_LMM_PARAMS if config.firm_behavior_mode == 0 else None
-            result = run_simulation(config=config, seed=42, scenario=scenario_name, telematics_multiplier=st.session_state.telematics_multiplier, lmm_params=lmm_p)
+            result = run_simulation(config=config, seed=42, scenario=scenario_name, telematics_multiplier=st.session_state.telematics_multiplier)
             st.session_state.metrics_history = result.metrics_history
             st.session_state.last_result = result
             st.success("Simulation Complete!")
@@ -77,7 +73,7 @@ with col2:
         st.download_button(
             label="📄 Download 2-Page PDF Report",
             data=pdf_bytes,
-            file_name=f"NexusAI_Report_{scenario_name}.pdf",
+            file_name=f"Utopia_Report_{scenario_name}.pdf",
             mime="application/pdf",
             use_container_width=True
         )

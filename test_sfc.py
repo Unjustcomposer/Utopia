@@ -1,9 +1,9 @@
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import init_sim_state
-from nexusai.core.engine_jax import (
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import init_sim_state
+from utopia.core.engine_jax import (
     _credit_market_step,
     _production_step,
     _wage_payment_step,

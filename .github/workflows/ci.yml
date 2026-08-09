@@ -1,4 +1,4 @@
-name: NexusAI CI
+name: Utopia CI
 
 on:
   push:

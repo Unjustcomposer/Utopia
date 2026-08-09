@@ -1,12 +1,12 @@
 """
-NexusAI — Agent Economy Simulator
+Utopia — Agent Economy Simulator
 ==================================
 CLI entry point for running pure JAX simulations and LMM training.
 """
 
 import argparse
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import run_simulation
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import run_simulation
 from train_rl import train_lmm
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -15,9 +15,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
           f"{config.num_ticks} ticks, seed={args.seed}")
     
-    from nexusai.core.checkpoint import load_lmm_checkpoint
-    lmm_params = load_lmm_checkpoint()
-    result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
+    result = run_simulation(config=config, seed=args.seed)
     
     print("\n=== SIMULATION METRICS (simulated) ===")
     if result.metrics_history:
@@ -31,16 +29,19 @@ def cmd_run(args: argparse.Namespace) -> None:
 
 def cmd_train(args: argparse.Namespace) -> None:
     """Train the Large Macroeconomic Model (LMM)."""
-    print(f"Training LMM for {args.epochs} epochs, with {args.ticks} ticks per episode, seed={args.seed}")
-    train_lmm(seed=args.seed, epochs=args.epochs, num_ticks=args.ticks)
+    if hasattr(args, 'scenario') and args.scenario in ["2008", "2020", "2021"]:
+        print(f"Running Seed-Stage Validation for Scenario: {args.scenario} (Seed: {args.seed})")
+        from backtest_historical import run_backtest
+        run_backtest(args.scenario)
+    else:
+        print(f"Training LMM for {args.epochs} epochs, with {args.ticks} ticks per episode, seed={args.seed}")
+        train_lmm(seed=args.seed, epochs=args.epochs, num_ticks=args.ticks)
 
 def cmd_demo(args: argparse.Namespace) -> None:
     """Run a quick visual demo of the simulator."""
     print("Running Interactive Demo Mode...")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
-    from nexusai.core.checkpoint import load_lmm_checkpoint
-    lmm_params = load_lmm_checkpoint()
-    result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
+    result = run_simulation(config=config, seed=args.seed)
     final = result.metrics_history[-1] if result.metrics_history else {}
     print(f"\n[DEMO COMPLETE] Output: {final.get('total_output', 0):.2f} | Gini: {final.get('gini', 0):.4f}")
 
@@ -84,7 +85,7 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 def cmd_report(args: argparse.Namespace) -> None:
     """Generate an executive PDF report for a simulation scenario."""
-    from nexusai.enterprise.report_generator import generate_pdf_report
+    from utopia.enterprise.report_generator import generate_pdf_report
     
     print(f"Running simulation for report: {args.scenario}, seed={args.seed}")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
@@ -106,7 +107,7 @@ def cmd_backtest(args: argparse.Namespace) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="NexusAI",
+        prog="Utopia",
         description="Agent Economy Simulator — Pure JAX LMM Training & Simulation.",
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -123,6 +124,7 @@ def main():
     p_train.add_argument("--seed", type=int, default=42)
     p_train.add_argument("--epochs", type=int, default=100)
     p_train.add_argument("--ticks", type=int, default=50)
+    p_train.add_argument("--scenario", type=str, default=None)
     p_train.set_defaults(func=cmd_train)
 
     # ── demo ───────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 """
 Retail Inventory Optimizer
 ==========================
-An opinionated NexusAI Template designed for Retail Supply Chain managers.
+An opinionated Utopia Template designed for Retail Supply Chain managers.
 This template abstracts the JAX engine and runs a grid search over 
 inventory buffer targets to find the optimal strategy against macro shocks.
 """
@@ -14,13 +14,13 @@ import jax.numpy as jnp
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import init_sim_state, _run_scan
-from nexusai.core.scenarios import generate_shock_matrix
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import init_sim_state, _run_scan
+from utopia.core.scenarios import generate_shock_matrix
 
 def run_optimizer(buffer_targets):
     print("=========================================================")
-    print(" Retail Inventory Optimizer via NexusAI (JAX Accelerated)")
+    print(" Retail Inventory Optimizer via Utopia (JAX Accelerated)")
     print("=========================================================")
     print(f"Testing Inventory Buffers: {buffer_targets}")
     

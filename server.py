@@ -1,5 +1,5 @@
 """
-API Server for NexusAI Simulator
+API Server for Utopia Simulator
 ================================
 Enterprise-grade asynchronous API server using FastAPI.
 Replaces the monolithic blocking http.server architecture.
@@ -23,24 +23,21 @@ import pandas as pd
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from nexusai.enterprise.auth import get_current_user, User, get_admin_user
-from nexusai.enterprise.database import get_db, SimulationResult
-from nexusai.enterprise.rate_limit import limiter
-from nexusai.connectors.data_ingestion import GlobalBaselineCompiler
+from utopia.enterprise.auth import get_current_user, User, get_admin_user
+from utopia.enterprise.database import get_db, SimulationResult
+from utopia.enterprise.rate_limit import limiter
+from utopia.connectors.data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-from nexusai.enterprise.audit_logger import SecureAuditLogger
+from utopia.enterprise.audit_logger import SecureAuditLogger
 
-from nexusai.core.config import SimulationConfig
+from utopia.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
-from nexusai.core.checkpoint import load_lmm_checkpoint
-import jwt
-
-GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
+from dashboard_ui import DASHBOARD_HTML
 
 audit_logger = SecureAuditLogger()
 
-app = FastAPI(title="NexusAI Engine API", description="Agent-Based Economic Simulator")
+app = FastAPI(title="Utopia Engine API", description="Agent-Based Economic Simulator")
 
 @app.middleware("http")
 async def extract_tenant_for_ratelimit(request: Request, call_next):
@@ -61,12 +58,12 @@ from prometheus_client import make_asgi_app, Counter, Histogram, CollectorRegist
 _metrics_registry = CollectorRegistry()
 
 try:
-    SIMULATION_COUNTER = Counter("nexusai_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
-    SIMULATION_DURATION = Histogram("nexusai_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+    SIMULATION_COUNTER = Counter("utopia_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
+    SIMULATION_DURATION = Histogram("utopia_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
 except ValueError:
     from prometheus_client import REGISTRY
-    SIMULATION_COUNTER = REGISTRY._names_to_collectors.get("nexusai_simulations_total") or Counter("nexusai_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
-    SIMULATION_DURATION = REGISTRY._names_to_collectors.get("nexusai_simulation_duration_seconds") or Histogram("nexusai_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+    SIMULATION_COUNTER = REGISTRY._names_to_collectors.get("utopia_simulations_total") or Counter("utopia_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
+    SIMULATION_DURATION = REGISTRY._names_to_collectors.get("utopia_simulation_duration_seconds") or Histogram("utopia_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
 
 app.mount("/metrics", make_asgi_app(registry=_metrics_registry))
 
@@ -86,7 +83,7 @@ app.add_middleware(
 
 from fastapi.staticfiles import StaticFiles
 import glob
-from nexusai.core.scenarios import SCENARIO_LIST
+from utopia.core.scenarios import SCENARIO_LIST
 
 # Endpoints for Frontend Phase 2.1
 @app.get("/api/calibration_profiles")
@@ -96,21 +93,42 @@ async def get_calibration_profiles(user: User = Depends(get_current_user)):
 
 @app.get("/api/erp/status")
 async def get_erp_status(user: User = Depends(get_current_user)):
-    from nexusai.connectors.erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
+    from utopia.connectors.erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
     sap = SAP_ERP_Client()
     oracle = Oracle_NetSuite_Client()
+    
+    # Actively attempt connection to trigger fallback detection
+    try:
+        sap._authenticate()
+    except Exception:
+        pass
+    try:
+        oracle.get_sales_orders()
+    except Exception:
+        pass
+        
     return {
         "SAP_ECC": {"mode": "mock" if sap.is_mock_mode else "live", "connected": sap.is_mock_mode is not True},
-        "Oracle_NetSuite": {"mode": "mock" if oracle.is_mock_mode else "live", "connected": oracle.is_mock_mode is not True},
-        "lmm_checkpoint": {"loaded": GLOBAL_LMM_PARAMS is not None},
+        "Oracle_NetSuite": {"mode": "mock" if oracle.is_mock_mode else "live", "connected": oracle.is_mock_mode is not True}
     }
 
-@app.post("/api/admin/reload-model")
-async def reload_model(user: User = Depends(get_admin_user)):
-    global GLOBAL_LMM_PARAMS
-    GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
-    loaded = GLOBAL_LMM_PARAMS is not None
-    return {"status": "reloaded" if loaded else "no_checkpoint_found", "loaded": loaded}
+@app.get("/api/model/status")
+async def get_model_status(user: User = Depends(get_current_user)):
+    from utopia.core.checkpoint import get_checkpoint_metadata
+    checkpoint_path = "checkpoints/lmm_latest.pkl"
+    if os.path.exists(checkpoint_path):
+        import hashlib
+        mtime = os.path.getmtime(checkpoint_path)
+        with open(checkpoint_path, "rb") as f:
+            file_hash = hashlib.md5(f.read()).hexdigest()
+        metadata = get_checkpoint_metadata()
+        return {
+            "present": True,
+            "mtime": mtime,
+            "hash": file_hash,
+            "metadata": metadata
+        }
+    return {"present": False}
 
 @app.get("/api/scenarios")
 async def get_scenarios(user: User = Depends(get_current_user)):
@@ -155,9 +173,8 @@ async def handle_api_compare(
             use_us_calibration=req.use_us_calibration,
             firm_behavior_mode=req.firm_behavior_mode
         )
-        lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
-        baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline", lmm_p)
-        scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario, lmm_p)
+        baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline")
+        scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
         
         baseline_result, scenario_result = await asyncio.gather(baseline_task, scenario_task)
         
@@ -186,7 +203,7 @@ async def handle_api_compare(
             "username": user.username,
             "scenario": req.scenario,
             "run_type": "compare"
-        }, "NexusAI")
+        }, "Utopia")
         
         return sanitize_for_json(response)
     except Exception as e:
@@ -217,10 +234,10 @@ class RunRequest(BaseModel):
     scenario: str = "baseline"
     firm_behavior_mode: int = Field(default=0, ge=0, le=2)
 
-def _ray_run_simulation(config, seed, scenario="baseline", lmm_params=None):
-    from nexusai.core.simulation_jax import run_simulation
+def _ray_run_simulation(config, seed, scenario="baseline"):
+    from utopia.core.simulation_jax import run_simulation
     # We use the new JAX engine directly
-    return run_simulation(config=config, seed=seed, scenario=scenario, lmm_params=lmm_params)
+    return run_simulation(config=config, seed=seed, scenario=scenario)
 
 @app.post("/api/run")
 @limiter.limit("10/minute")
@@ -242,8 +259,7 @@ async def handle_api_run(
         )
         
         with SIMULATION_DURATION.time():
-            lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
-            result = await asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario, lmm_p)
+            result = await asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
             
         SIMULATION_COUNTER.labels(type="run").inc()
         
@@ -266,7 +282,7 @@ async def handle_api_run(
             "username": user.username,
             "scenario": req.scenario,
             "run_type": "run"
-        }, "NexusAI")
+        }, "Utopia")
         
         return sanitize_for_json(response)
     except Exception as e:
@@ -304,8 +320,7 @@ async def handle_api_experiment(
         async def run_scenario(scenario_name):
             outputs = []
             for i in range(req.num_seeds):
-                lmm_p = GLOBAL_LMM_PARAMS if req.firm_behavior_mode == 0 else None
-                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name, lmm_p)
+                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name)
                 if res.metrics_history:
                     outputs.append(res.metrics_history[-1].get('total_output', 0))
             return np.mean(outputs) if outputs else 0, np.std(outputs) if outputs else 0
@@ -321,7 +336,7 @@ async def handle_api_experiment(
             "username": user.username,
             "scenario_a": req.scenario_a,
             "scenario_b": req.scenario_b
-        }, "NexusAI")
+        }, "Utopia")
         
         return sanitize_for_json({
             "scenario_a": {"mean_output": mean_a, "std_output": std_a},
@@ -380,7 +395,7 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_admi
         overrides, is_fallback = await asyncio.to_thread(compiler.compile_baseline)
         
         logger.info("Baseline compiled successfully. Initiating JAX Simulation with overrides.")
-        from nexusai.core.simulation_jax import run_simulation
+        from utopia.core.simulation_jax import run_simulation
         result = await asyncio.to_thread(run_simulation, config=config, seed=42, scenario="baseline", baseline_state_overrides=overrides)
         
         # Optionally save to DB here...
@@ -389,7 +404,7 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_admi
             "tenant_id": user.tenant_id,
             "username": user.username,
             "action": "ingest_baseline"
-        }, "NexusAI")
+        }, "Utopia")
         
         return {
             "status": "success", 
@@ -417,14 +432,16 @@ async def handle_api_explain(
     user: User = Depends(get_current_user)
 ):
     try:
-        from nexusai.core.lmm_explain import explain_firm_policy, generate_executive_explanation
-        from nexusai.core.lmm_model import get_initial_lmm_params
+        from utopia.core.lmm_explain import explain_firm_policy, generate_executive_explanation
+        from utopia.core.lmm_model import get_initial_lmm_params
         import jax
         import jax.numpy as jnp
         
         warning = None
-        if GLOBAL_LMM_PARAMS is not None:
-            params = GLOBAL_LMM_PARAMS
+        from utopia.core.checkpoint import load_lmm_checkpoint
+        current_lmm_params = load_lmm_checkpoint()
+        if current_lmm_params is not None:
+            params = current_lmm_params
         else:
             warning = "Using untrained model weights. Run 'python main.py train' to train the LMM first."
             params = await asyncio.to_thread(get_initial_lmm_params, jax.random.PRNGKey(42))
@@ -463,6 +480,6 @@ if __name__ == "__main__":
     import sys
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     print("==========================================================")
-    print(f"  NexusAI FastAPI Server running at http://localhost:{port}")
+    print(f"  Utopia FastAPI Server running at http://localhost:{port}")
     print("==========================================================")
     uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)

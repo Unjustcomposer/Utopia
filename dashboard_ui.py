@@ -2,7 +2,7 @@ import jwt
 import os
 
 JWT_SECRET = os.getenv("JWT_SECRET")
-DEV_MODE = os.getenv("NEXUSAI_DEV_MODE", "false").lower() == "true"
+DEV_MODE = os.getenv("UTOPIA_DEV_MODE", "false").lower() == "true"
 if JWT_SECRET:
     TOKEN = jwt.encode({"sub": "admin", "tenant_id": "tenant_1"}, JWT_SECRET, algorithm="HS256")
 elif DEV_MODE:
@@ -16,7 +16,7 @@ DASHBOARD_HTML = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexusAI Dashboard</title>
+    <title>Utopia Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
@@ -234,7 +234,7 @@ DASHBOARD_HTML = f"""
 </head>
 <body>
     <div class="header">
-        <h1>NexusAI Dashboard</h1>
+        <h1>Utopia Dashboard</h1>
         <div style="color: #8b949e; font-size: 0.875rem;">Status: <span style="color: var(--success)">● Online</span></div>
     </div>
     

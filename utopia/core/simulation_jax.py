@@ -1,0 +1,394 @@
+"""
+JAX Simulation Orchestrator
+===========================
+Wraps the pure functional JAX engine with the legacy Simulation API interface.
+"""
+
+import jax
+import jax.numpy as jnp
+from functools import partial
+from typing import Any, Dict, List, Optional
+import numpy as np
+
+from utopia.core.config import SimulationConfig
+from utopia.core.state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState
+from utopia.core.engine_jax import simulation_step
+from utopia.core.lmm_model import get_initial_lmm_params
+
+import dataclasses
+
+@dataclasses.dataclass
+class SimulationResult:
+    seed: int
+    config: SimulationConfig
+    scenario_description: str
+    metrics_history: List[Dict[str, Any]]
+    final_firms: List[Dict[str, Any]]
+    lmm_explanations: Optional[Dict[str, Any]] = None
+
+    
+    def summary(self) -> Dict[str, Any]:
+        if not self.metrics_history:
+            return {}
+        n = len(self.metrics_history)
+        return {
+            "mean_gini": sum(m.get("gini_coefficient", 0.0) for m in self.metrics_history) / n,
+            "mean_unemployment": sum(m.get("unemployment_rate", 0.0) for m in self.metrics_history) / n,
+            "mean_price_index": sum(m.get("price_index", 0.0) for m in self.metrics_history) / n,
+            "mean_welfare": sum(m.get("total_welfare", 0.0) for m in self.metrics_history) / n,
+        }
+
+def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, lmm_params: Optional[dict] = None) -> SimState:
+    """Initializes the JAX PyTree state."""
+    key = jax.random.PRNGKey(seed)
+    
+    # 1. Agents
+    if config.use_us_calibration:
+        from us_calibration import sample_demographics, sample_agent_financials
+        rng = np.random.default_rng(seed)
+        regions, ages = sample_demographics(rng, config.num_agents)
+        budgets, expected_wages, savings_rates = sample_agent_financials(
+            rng, regions, ages, 
+            base_budget=config.initial_budget_max / 2,
+            base_wage=config.base_wage_max / 2
+        )
+        budget = jnp.array(budgets, dtype=jnp.float32)
+        wage = jnp.zeros(config.num_agents, dtype=jnp.float32)
+        savings = jnp.zeros(config.num_agents, dtype=jnp.float32)
+        savings_rate = jnp.array(savings_rates, dtype=jnp.float32)
+        # We can extract expected wage to use as initial wage expectation
+        past_avg_prices = jnp.full((config.num_agents, config.num_goods), jnp.mean(jnp.array(expected_wages)))
+    else:
+        key, subkey = jax.random.split(key)
+        budget = jax.random.uniform(subkey, (config.num_agents,), minval=config.initial_budget_min, maxval=config.initial_budget_max)
+        wage = jnp.zeros(config.num_agents)
+        savings = jnp.zeros(config.num_agents)
+        
+        key, subkey = jax.random.split(key)
+        savings_rate = jax.random.uniform(subkey, (config.num_agents,), minval=config.savings_rate_min, maxval=config.savings_rate_max)
+        
+        past_avg_prices = jnp.full((config.num_agents, config.num_goods), config.base_wage_min)
+        
+    employed = jnp.zeros(config.num_agents, dtype=jnp.float32)
+    employer_id = jnp.full(config.num_agents, -1, dtype=jnp.int32)
+    
+    key, subkey = jax.random.split(key)
+    risk_aversion = jax.random.uniform(subkey, (config.num_agents,), minval=config.risk_aversion_min, maxval=config.risk_aversion_max)
+    
+    key, subkey = jax.random.split(key)
+    preferences = jax.random.uniform(subkey, (config.num_agents, config.num_goods))
+    preferences = preferences / preferences.sum(axis=1, keepdims=True)
+    
+    key, subkey = jax.random.split(key)
+    awareness = jax.random.uniform(subkey, (config.num_agents, config.num_goods))
+    
+    key, subkey = jax.random.split(key)
+    skill = jax.random.uniform(subkey, (config.num_agents,), minval=config.skill_min, maxval=config.skill_max)
+    is_alive = jnp.ones(config.num_agents, dtype=jnp.bool_)
+    age = jnp.zeros(config.num_agents, dtype=jnp.int32)
+    
+    # Module 3
+    key, subkey = jax.random.split(key)
+    region_id = jax.random.randint(subkey, (config.num_agents,), 0, config.num_regions)
+    housing_status = jnp.zeros(config.num_agents, dtype=jnp.int32)
+    housing_wealth = jnp.zeros(config.num_agents, dtype=jnp.float32)
+    inflation_expectations = jnp.zeros(config.num_agents, dtype=jnp.float32)
+    
+    key, subkey = jax.random.split(key)
+    neighbors = jax.random.randint(subkey, (config.num_agents, 5), 0, config.num_agents)
+    insured = jnp.zeros(config.num_agents, dtype=jnp.bool_)
+    
+    # Apply baseline data overrides for Agents
+    if baseline_state_overrides:
+        if "agent_budgets" in baseline_state_overrides:
+            budget = baseline_state_overrides["agent_budgets"]
+        if "agent_savings_rates" in baseline_state_overrides:
+            savings_rate = baseline_state_overrides["agent_savings_rates"]
+    
+    agents = AgentState(
+        budget=budget, wage=wage, savings=savings, employed=employed,
+        employer_id=employer_id, risk_aversion=risk_aversion, savings_rate=savings_rate,
+        preferences=preferences, awareness=awareness, past_avg_prices=past_avg_prices,
+        is_alive=is_alive, age=age, skill=skill,
+        region_id=region_id, housing_status=housing_status, housing_wealth=housing_wealth,
+        inflation_expectations=inflation_expectations, neighbors=neighbors, insured=insured
+    )
+    
+    # 2. Firms
+    good_produced = jnp.arange(config.num_firms) % config.num_goods
+    
+    key, subkey = jax.random.split(key)
+    cash = jax.random.uniform(subkey, (config.num_firms,), minval=config.initial_firm_cash_min, maxval=config.initial_firm_cash_max)
+    
+    inventory = jnp.full(config.num_firms, 10.0)
+    
+    key, subkey = jax.random.split(key)
+    price = jax.random.uniform(subkey, (config.num_firms,), minval=10.0, maxval=20.0)
+    
+    key, subkey = jax.random.split(key)
+    quality = jax.random.uniform(subkey, (config.num_firms,), minval=0.8, maxval=1.2)
+    
+    production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
+    num_employees = jnp.zeros(config.num_firms, dtype=jnp.float32)
+    wage_offer = jax.random.uniform(subkey, (config.num_firms,), minval=config.minimum_wage, maxval=config.minimum_wage + 5.0)
+    debt = jnp.zeros(config.num_firms)
+    cumulative_revenue = jnp.zeros(config.num_firms)
+    cumulative_cost = jnp.zeros(config.num_firms)
+    
+    demand_history = jnp.zeros((config.num_firms, 3))
+    revenue_history = jnp.zeros((config.num_firms, 3))
+    price_history = jnp.zeros((config.num_firms, 3))
+    profit_history = jnp.zeros((config.num_firms, 3))
+    
+    input_cost_multiplier = jnp.ones(config.num_firms)
+    
+    is_active = jnp.ones(config.num_firms, dtype=jnp.float32)
+    capital_goods = jnp.ones(config.num_firms) * 10.0
+    equity = cash + inventory * price + capital_goods * config.capital_cost - debt
+    
+    key, subkey = jax.random.split(key)
+    firm_region_id = jax.random.randint(subkey, (config.num_firms,), 0, config.num_regions)
+    menu_cost_paid = jnp.zeros(config.num_firms, dtype=jnp.bool_)
+    
+    # Apply baseline data overrides for Firms
+    if baseline_state_overrides:
+        if "firm_capacities" in baseline_state_overrides:
+            production_capacity = baseline_state_overrides["firm_capacities"]
+        if "firm_cash" in baseline_state_overrides:
+            cash = baseline_state_overrides["firm_cash"]
+            # Recalculate equity
+            equity = cash + inventory * price + capital_goods * config.capital_cost - debt
+    
+    firms = FirmState(
+        good_produced=good_produced, cash=cash, inventory=inventory, price=price, quality=quality,
+        production_capacity=production_capacity, num_employees=num_employees, wage_offer=wage_offer,
+        debt=debt, cumulative_revenue=cumulative_revenue, cumulative_cost=cumulative_cost,
+        demand_history=demand_history, revenue_history=revenue_history, price_history=price_history,
+        profit_history=profit_history, input_cost_multiplier=input_cost_multiplier,
+        is_active=is_active, capital_goods=capital_goods, equity=equity,
+        region_id=firm_region_id, menu_cost_paid=menu_cost_paid
+    )
+    
+    # 3. Macro
+    macro = MacroState(
+        deposits=jnp.array(0.0), loans=jnp.array(0.0), base_rate=jnp.array(0.05),
+        price_index=jnp.array(10.0), memory_count=jnp.array(0), bank_equity=jnp.array(0.0),
+        sfc_delta=jnp.array(0.0)
+    )
+    
+    # 4. Gov
+    gov = GovState(
+        tax_revenue=jnp.array(0.0), transfers_paid=jnp.array(0.0),
+        bonds_outstanding=jnp.array(0.0), cash=jnp.array(0.0)
+    )
+    
+    # 5. Housing & Foreign
+    housing_supply = jnp.ones(config.num_regions) * 1000.0
+    if baseline_state_overrides and "housing_supply" in baseline_state_overrides:
+        housing_supply = baseline_state_overrides["housing_supply"]
+        
+    housing = HousingState(
+        supply=housing_supply,
+        price=jnp.ones(config.num_regions) * 200.0
+    )
+    
+    foreign = ForeignState(
+        exchange_rate=jnp.array(1.0),
+        exports=jnp.array(0.0),
+        imports=jnp.array(0.0),
+        cash=jnp.array(0.0)
+    )
+    
+    # Initialize LMM Transformer Weights
+    key, subkey = jax.random.split(key)
+    if config.firm_behavior_mode == 0 and lmm_params is None:
+        from utopia.core.checkpoint import load_lmm_checkpoint
+        lmm_params = load_lmm_checkpoint()
+        if lmm_params is None:
+            import logging
+            logging.warning("WARNING: Checkpoint not found. Initializing LMM with untrained random weights.")
+            lmm_params = get_initial_lmm_params(subkey)
+    elif lmm_params is None:
+        lmm_params = get_initial_lmm_params(subkey)
+    
+    return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, rng_key=key, lmm_params=lmm_params)
+
+
+from utopia.core import climate_shocks
+
+# We pass SimulationConfig directly since it is a flax PyTree
+@partial(jax.jit, static_argnames=('num_ticks',))
+def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig, shocks_matrix: jnp.ndarray):
+    
+    def scan_body(state, tick_shocks):
+        hike_amt, savings_inc, cost_mult, infra_damage, route_closure = tick_shocks
+        
+        # Apply shocks
+        new_macro = state.macro._replace(base_rate=state.macro.base_rate + hike_amt)
+        new_agents = state.agents._replace(savings_rate=jnp.clip(state.agents.savings_rate + savings_inc, 0.0, 0.9))
+        new_firms = state.firms._replace(input_cost_multiplier=state.firms.input_cost_multiplier * cost_mult)
+        
+        shocked_state = state._replace(macro=new_macro, agents=new_agents, firms=new_firms)
+        
+        # Apply climate shocks
+        shocked_state = jax.lax.cond(
+            infra_damage > 0.0,
+            lambda s: climate_shocks.apply_infrastructure_damage(s, infra_damage),
+            lambda s: s,
+            shocked_state
+        )
+        
+        shocked_state = jax.lax.cond(
+            route_closure > 0.0,
+            lambda s: climate_shocks.apply_route_closure(s, route_closure),
+            lambda s: s,
+            shocked_state
+        )
+        
+        new_state = simulation_step(shocked_state, config)
+        
+        # Calculate true production for GDP
+        def total_firm_skill(firm_id):
+            return jnp.sum(jnp.where(new_state.agents.employer_id == firm_id, new_state.agents.skill, 0.0))
+        firm_ids = jnp.arange(new_state.firms.cash.shape[0])
+        effective_labor = jax.vmap(total_firm_skill)(firm_ids)
+        labor_output = effective_labor * config.productivity_per_worker
+        capacity = new_state.firms.capital_goods * 10.0
+        raw_output = jnp.minimum(capacity, labor_output)
+        raw_output = jnp.where(new_state.firms.is_active, raw_output, 0.0)
+        production = raw_output
+        gdp = jnp.sum(production * new_state.firms.price)
+        
+        # Calculate Gini coefficient on agent budgets
+        budgets = jnp.sort(new_state.agents.budget)
+        n = budgets.shape[0]
+        index = jnp.arange(1, n + 1)
+        gini = (2.0 * jnp.sum(index * budgets) / (n * jnp.sum(budgets) + 1e-8)) - (n + 1.0) / n
+        gini = jnp.maximum(0.0, gini) # Ensure non-negative
+
+        # Calculate tick metrics to return as stacked arrays
+        tick_metrics = {
+            "price_index": new_state.macro.price_index,
+            "employment_rate": jnp.mean(new_state.agents.employed.astype(jnp.float32)),
+            "total_output": gdp, 
+            "gdp_proxy": gdp,
+            "inflation_tick": new_state.macro.price_index,
+            "gini": gini, 
+            "total_welfare": jnp.sum(new_state.agents.savings),
+            "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier)
+        }
+        
+        return new_state, tick_metrics
+
+    final_state, stacked_metrics = jax.lax.scan(scan_body, initial_state, shocks_matrix, length=num_ticks)
+    return final_state, stacked_metrics
+
+class JAXSimulation:
+    def __init__(
+        self,
+        config: SimulationConfig,
+        seed: Any,
+        scenario: Optional[str] = "baseline",
+        baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None,
+        telematics_multiplier: float = 1.0,
+        lmm_params: Optional[dict] = None,
+    ) -> None:
+        self.config = config
+        
+        if isinstance(seed, np.random.SeedSequence):
+            import hashlib
+            self.seed = seed.entropy if isinstance(seed.entropy, int) else int(hashlib.md5(str(seed.entropy).encode()).hexdigest(), 16) % (2**32)
+        else:
+            self.seed = int(seed)
+            
+        self.scenario = scenario
+        self.baseline_state_overrides = baseline_state_overrides
+        self.initial_state = init_sim_state(self.config, self.seed, self.baseline_state_overrides, lmm_params=lmm_params)
+        
+        # Generate shocks
+        from utopia.core.scenarios import generate_shock_matrix
+        self.shocks_matrix = jnp.array(generate_shock_matrix(self.config.num_ticks, self.scenario, telematics_multiplier))
+
+    def run(self) -> SimulationResult:
+        final_state, stacked_metrics = _run_scan(self.initial_state, self.config.num_ticks, self.config, self.shocks_matrix)
+        
+        # Unpack stacked_metrics (JAX arrays) into a list of dicts for the legacy Dashboard
+        metrics_history = []
+        for i in range(self.config.num_ticks):
+            metrics_history.append({
+                "tick": i,
+                "price_index": float(stacked_metrics["price_index"][i]),
+                "unemployment_rate": 1.0 - float(stacked_metrics["employment_rate"][i]),
+                "total_output": float(stacked_metrics["total_output"][i]),
+                "gini_coefficient": float(stacked_metrics["gini"][i]),
+                "total_welfare": float(stacked_metrics["total_welfare"][i]),
+            })
+            
+        # Compute Risk Metrics: Value at Risk and Maximum Foreseeable Loss
+        # MFL could be the max drop in total output from the max total output
+        total_outputs = stacked_metrics["total_output"]
+        max_output = jnp.max(total_outputs)
+        min_output_after_max = jnp.min(total_outputs[jnp.argmax(total_outputs):])
+        mfl_inventory_drop = float(max_output - min_output_after_max)
+        
+        cost_multipliers = stacked_metrics["avg_cost_multiplier"]
+        var_cost_spike = float(jnp.max(cost_multipliers) - jnp.mean(cost_multipliers))
+        
+        risk_metrics = {
+            "value_at_risk": var_cost_spike,
+            "maximum_foreseeable_loss": mfl_inventory_drop
+        }
+            
+        # Reconstruct final agents/firms for summary
+        # Just creating dummy data to satisfy the legacy interface
+        final_firms = []
+        for i in range(self.config.num_firms):
+            final_firms.append({
+                "id": i,
+                "profit": float(final_state.firms.cumulative_revenue[i] - final_state.firms.cumulative_cost[i])
+            })
+            
+        # Generate LMM explanation based on final state
+        try:
+            from utopia.core.lmm_explain import generate_executive_explanation
+            # Use the first active firm or just firm 0 as representative
+            representative_firm_idx = 0
+            
+            macro_price = jnp.full(3, final_state.macro.price_index)
+            macro_rate = jnp.full(3, final_state.macro.base_rate)
+            
+            shift_amt = -(final_state.macro.memory_count % 3 + 1)
+            
+            def get_hist(arr, idx):
+                return jnp.roll(arr[idx], shift=shift_amt, axis=0)
+                
+            lmm_inputs = jnp.stack([
+                get_hist(final_state.firms.demand_history, representative_firm_idx),
+                get_hist(final_state.firms.profit_history, representative_firm_idx),
+                get_hist(final_state.firms.price_history, representative_firm_idx),
+                macro_price,
+                macro_rate
+            ], axis=-1)
+            
+            # ensure params are passed
+            # final_state.lmm_params
+            lmm_exps = generate_executive_explanation(final_state.lmm_params, lmm_inputs, vertical="supply_chain")
+        except Exception as e:
+            lmm_exps = {"error": str(e)}
+
+        result = SimulationResult(
+            seed=self.seed,
+            config=self.config,
+            scenario_description="JAX Accelerated Run",
+            metrics_history=metrics_history,
+            final_firms=final_firms,
+            lmm_explanations=lmm_exps
+        )
+        
+        # Attach risk_metrics to result, or wrap in a dict. Since SimulationResult is a dataclass without it, we can just attach it directly.
+        setattr(result, 'risk_metrics', risk_metrics)
+        return result
+
+def run_simulation(config: SimulationConfig, seed: Any, scenario: Optional[Any] = None, baseline_state_overrides: Optional[Dict[str, jnp.ndarray]] = None, telematics_multiplier: float = 1.0, lmm_params: Optional[dict] = None) -> SimulationResult:
+    sim = JAXSimulation(config=config, seed=seed, scenario=scenario, baseline_state_overrides=baseline_state_overrides, telematics_multiplier=telematics_multiplier, lmm_params=lmm_params)
+    return sim.run()

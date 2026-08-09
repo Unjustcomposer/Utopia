@@ -13,9 +13,9 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import init_sim_state
-from nexusai.core.engine_jax import simulation_step
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import init_sim_state
+from utopia.core.engine_jax import simulation_step
 
 
 # ───────────────────────────────────────────────────────────────────────

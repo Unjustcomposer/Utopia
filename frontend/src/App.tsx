@@ -1,15 +1,28 @@
 import { useState, useEffect } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { Activity, Layers, Play, History } from 'lucide-react'
+import { Activity, Layers, Play, History, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useAuth0 } from '@auth0/auth0-react'
 
 export default function App() {
-  // Bypassing Auth0 for local dev
-  const isAuthenticated = true
-  const isLoading = false
-  const getAccessTokenSilently = async () => 'mock-token'
-  const loginWithRedirect = () => {}
-  const logout = (opts?: any) => { console.log('Mock logout', opts) }
+  const isDevMode = import.meta.env.VITE_UTOPIA_DEV_MODE === 'true'
+  const hasProdDomain = import.meta.env.VITE_AUTH0_DOMAIN && import.meta.env.VITE_AUTH0_DOMAIN !== 'mock-domain.auth0.com'
   
+  if (isDevMode && hasProdDomain) {
+    return (
+      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#450a0a' }}>
+        <div className="panel" style={{ textAlign: 'center' }}>
+          <AlertTriangle color="#f87171" size={48} />
+          <h2 style={{ color: '#f87171' }}>SECURITY GUARDRAIL TRIGGERED</h2>
+          <p>You are attempting to boot in DEV_MODE with a production AUTH0_DOMAIN.</p>
+          <p>This is extremely dangerous as DEV_MODE bypasses signature verification.</p>
+          <p>Please fix your environment variables and restart.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { isAuthenticated, isLoading, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0()
+
   const [scenarios, setScenarios] = useState<string[]>([])
   const [profiles, setProfiles] = useState<string[]>([])
   
@@ -21,6 +34,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any>(null)
   const [explanation, setExplanation] = useState<string>('')
+  const [modelStatus, setModelStatus] = useState<any>(null)
 
   // Academic / Research Mode (Phase 4.3)
   const [isAcademicMode, setIsAcademicMode] = useState(false)
@@ -40,10 +54,11 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = await getAccessTokenSilently()
+        const token = isDevMode ? 'mock-token' : await getAccessTokenSilently()
         const headers = { Authorization: `Bearer ${token}` }
         fetch('/api/scenarios', { headers }).then(r => r.json()).then(data => setScenarios(Array.isArray(data) ? data : [])).catch(console.error)
         fetch('/api/calibration_profiles', { headers }).then(r => r.json()).then(data => setProfiles(Array.isArray(data) ? data : [])).catch(console.error)
+        fetch('/api/model/status', { headers }).then(r => r.json()).then(data => setModelStatus(data)).catch(console.error)
       } catch (e) {
         console.error("Failed to fetch initial data", e)
       }
@@ -56,7 +71,7 @@ export default function App() {
   const runSimulation = async () => {
     setLoading(true)
     try {
-      const token = await getAccessTokenSilently()
+      const token = isDevMode ? 'mock-token' : await getAccessTokenSilently()
       const res = await fetch('/api/run/compare', {
         method: 'POST',
         headers: { 
@@ -172,6 +187,20 @@ export default function App() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <h1><Activity style={{display: 'inline', verticalAlign: 'middle', marginRight: 8}}/> Utopia</h1>
+          
+          {modelStatus && (
+            <div style={{ 
+              display: 'flex', alignItems: 'center', gap: '0.5rem', 
+              padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.85rem',
+              background: modelStatus.present ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              color: modelStatus.present ? '#22c55e' : '#ef4444',
+              border: `1px solid ${modelStatus.present ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+            }}>
+              {modelStatus.present ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+              {modelStatus.present ? `LMM Trained (Epochs: ${modelStatus.metadata?.epochs || 'N/A'})` : 'LMM Untrained (Random Weights)'}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button 
               onClick={() => setView('scenario')} 

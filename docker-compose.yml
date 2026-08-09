@@ -4,9 +4,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: nexusai
-      POSTGRES_PASSWORD: nexusai_dev
-      POSTGRES_DB: nexusai
+      POSTGRES_USER: utopia
+      POSTGRES_PASSWORD: utopia_dev
+      POSTGRES_DB: utopia
     ports:
       - "5432:5432"
     volumes:
@@ -21,11 +21,25 @@ services:
     volumes:
       - .:/app
     environment:
-      - DATABASE_URL=postgresql://nexusai:nexusai_dev@db:5432/nexusai
+      - DATABASE_URL=postgresql://utopia:utopia_dev@db:5432/utopia
       - AUTH0_DOMAIN=dev
-      - NEXUSAI_DEV_MODE=true
+      - UTOPIA_DEV_MODE=true
       # JWT_SECRET=<generate-a-real-secret>
-      # For local dev without docker: DATABASE_URL=sqlite:///./nexusai.db
+      # For local dev without docker: DATABASE_URL=sqlite:///./utopia.db
+
+  dashboard:
+    build: .
+    profiles:
+      - dashboard
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    volumes:
+      - .:/app
+    environment:
+      - UTOPIA_API_URL=http://api:8765
+    command: ["python", "-m", "streamlit", "run", "app.py"]
 
 volumes:
   pgdata:

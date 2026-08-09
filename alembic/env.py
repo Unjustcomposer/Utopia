@@ -19,7 +19,7 @@ if config.config_file_name is not None:
 import os
 import sys
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
-from nexusai.enterprise import database
+from utopia.enterprise import database
 target_metadata = database.Base.metadata
 
 # other values from the config, defined by the needs of env.py,

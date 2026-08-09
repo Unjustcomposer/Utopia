@@ -1,6 +1,6 @@
 # Contributors & Team
 
-NexusAI is an open-source research project focused on gradient-based macroeconomic simulation. 
+Utopia is an open-source research project focused on gradient-based macroeconomic simulation. 
 
 ## Core Contributors
 
@@ -10,7 +10,7 @@ Omsingh has contributed significantly to the codebase, including work on the und
 
 **Harshit Khandelwal**  
 *Code Contributor & Engineer*  
-Harshit is a key driver of the NexusAI platform, instrumental in architecting the core systems and leading technical innovation across the stack.
+Harshit is a key driver of the Utopia platform, instrumental in architecting the core systems and leading technical innovation across the stack.
 
 ## Open Source Philosophy
 

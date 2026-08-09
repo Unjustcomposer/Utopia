@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nexusai-server
+  name: utopia-server
   labels:
-    app: nexusai
+    app: utopia
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: nexusai
+      app: utopia
   template:
     metadata:
       labels:
-        app: nexusai
+        app: utopia
     spec:
       containers:
-      - name: nexusai-server
-        image: nexusai-server:latest
+      - name: utopia-server
+        image: utopia-server:latest
         ports:
         - containerPort: 8000
         resources:
@@ -30,10 +30,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: nexusai-service
+  name: utopia-service
 spec:
   selector:
-    app: nexusai
+    app: utopia
   ports:
     - protocol: TCP
       port: 80

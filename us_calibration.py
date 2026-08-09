@@ -14,7 +14,7 @@ from typing import Dict, Any, Tuple
 import os
 import json
 import pandas as pd
-from nexusai.core.config import SimulationConfig, CalibrationProfile
+from utopia.core.config import SimulationConfig, CalibrationProfile
 
 def load_calibration_profile(name: str) -> dict:
     """Load a calibration profile from a JSON file."""

@@ -24,4 +24,4 @@ COPY . .
 EXPOSE 8765
 EXPOSE 8501
 
-CMD ["python", "-m", "streamlit", "run", "app.py"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8765"]

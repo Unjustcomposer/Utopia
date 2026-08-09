@@ -2,9 +2,9 @@ import time
 import random
 import jax
 import jax.numpy as jnp
-from nexusai.core.config import SimulationConfig
-from nexusai.core.simulation_jax import init_sim_state
-from nexusai.core.engine_jax import simulation_step
+from utopia.core.config import SimulationConfig
+from utopia.core.simulation_jax import init_sim_state
+from utopia.core.engine_jax import simulation_step
 
 # ── Pure Python (Mesa-style) Baseline ──
 
@@ -114,7 +114,7 @@ def run_benchmark():
     num_firms = 100
     num_ticks = 50
     
-    print(f"=== NexusAI Benchmarking ===")
+    print(f"=== Utopia Benchmarking ===")
     print(f"Agents: {num_agents:,} | Firms: {num_firms:,} | Ticks: {num_ticks}")
     
     print("\n[1/2] Running Pure Python (Mesa-style) Baseline...")

@@ -1,8 +1,8 @@
 import pytest
 import jax.numpy as jnp
-from nexusai.core.config import SimulationConfig
-from nexusai.connectors.data_ingestion import GlobalBaselineCompiler, FredMacroIndicator, FredDataClient
-from nexusai.core.simulation_jax import init_sim_state
+from utopia.core.config import SimulationConfig
+from utopia.connectors.data_ingestion import GlobalBaselineCompiler, FredMacroIndicator, FredDataClient
+from utopia.core.simulation_jax import init_sim_state
 import datetime
 
 def test_pydantic_validation():
