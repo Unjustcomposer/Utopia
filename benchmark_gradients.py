@@ -1,8 +1,8 @@
 import time
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from simulation_jax import init_sim_state, _run_scan
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state, _run_scan
 
 def run_benchmark():
     """

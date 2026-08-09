@@ -10,10 +10,10 @@ from functools import partial
 from typing import Any, Dict, List, Optional
 import numpy as np
 
-from config import SimulationConfig
-from state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState
-from engine_jax import simulation_step
-from lmm_model import get_initial_lmm_params
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState
+from nexusai.core.engine_jax import simulation_step
+from nexusai.core.lmm_model import get_initial_lmm_params
 
 import dataclasses
 
@@ -207,7 +207,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, rng_key=key, lmm_params=lmm_params)
 
 
-import climate_shocks
+from nexusai.core import climate_shocks
 
 # We pass SimulationConfig directly since it is a flax PyTree
 @partial(jax.jit, static_argnames=('num_ticks',))
@@ -299,7 +299,7 @@ class JAXSimulation:
         self.initial_state = init_sim_state(self.config, self.seed, self.baseline_state_overrides, lmm_params=lmm_params)
         
         # Generate shocks
-        from scenarios import generate_shock_matrix
+        from nexusai.core.scenarios import generate_shock_matrix
         self.shocks_matrix = jnp.array(generate_shock_matrix(self.config.num_ticks, self.scenario, telematics_multiplier))
 
     def run(self) -> SimulationResult:
@@ -343,7 +343,7 @@ class JAXSimulation:
             
         # Generate LMM explanation based on final state
         try:
-            from lmm_explain import generate_executive_explanation
+            from nexusai.core.lmm_explain import generate_executive_explanation
             # Use the first active firm or just firm 0 as representative
             representative_firm_idx = 0
             

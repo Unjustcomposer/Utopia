@@ -5,8 +5,8 @@ CLI entry point for running pure JAX simulations and LMM training.
 """
 
 import argparse
-from config import SimulationConfig
-from simulation_jax import run_simulation
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import run_simulation
 from train_rl import train_lmm
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -15,7 +15,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     print(f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
           f"{config.num_ticks} ticks, seed={args.seed}")
     
-    from checkpoint import load_lmm_checkpoint
+    from nexusai.core.checkpoint import load_lmm_checkpoint
     lmm_params = load_lmm_checkpoint()
     result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
     
@@ -38,7 +38,7 @@ def cmd_demo(args: argparse.Namespace) -> None:
     """Run a quick visual demo of the simulator."""
     print("Running Interactive Demo Mode...")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
-    from checkpoint import load_lmm_checkpoint
+    from nexusai.core.checkpoint import load_lmm_checkpoint
     lmm_params = load_lmm_checkpoint()
     result = run_simulation(config=config, seed=args.seed, lmm_params=lmm_params)
     final = result.metrics_history[-1] if result.metrics_history else {}
@@ -84,7 +84,7 @@ def cmd_search(args: argparse.Namespace) -> None:
 
 def cmd_report(args: argparse.Namespace) -> None:
     """Generate an executive PDF report for a simulation scenario."""
-    from report_generator import generate_pdf_report
+    from nexusai.enterprise.report_generator import generate_pdf_report
     
     print(f"Running simulation for report: {args.scenario}, seed={args.seed}")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)

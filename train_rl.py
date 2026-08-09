@@ -1,10 +1,10 @@
 import jax
 import jax.numpy as jnp
 import optax
-from config import SimulationConfig
-from simulation_jax import _run_scan, init_sim_state
-from state import SimState
-from scenarios import generate_shock_matrix
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import _run_scan, init_sim_state
+from nexusai.core.state import SimState
+from nexusai.core.scenarios import generate_shock_matrix
 
 def macroeconomic_objective(lmm_params, initial_state: SimState, config: SimulationConfig, scenario: str = "baseline"):
     """
@@ -46,7 +46,7 @@ def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50):
     initial_state = init_sim_state(config, seed)
     lmm_params = initial_state.lmm_params
     
-    from lmm_model import count_lmm_params
+    from nexusai.core.lmm_model import count_lmm_params
     param_count = count_lmm_params(lmm_params)
     print(f"LMM Policy Network instantiated with {param_count:,} parameters.")
     
@@ -80,7 +80,7 @@ def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50):
         
     print("LMM Training Complete. The Firm Transformer has learned a macroeconomic policy.")
     
-    from checkpoint import save_lmm_checkpoint
+    from nexusai.core.checkpoint import save_lmm_checkpoint
     import hashlib
     config_hash = hashlib.md5(str(config).encode()).hexdigest()
     metadata = {"config_hash": config_hash, "epochs": epochs, "num_ticks": num_ticks}

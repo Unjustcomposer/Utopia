@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
 
 def _update_ring_buffer(hist: jnp.ndarray, new_val: jnp.ndarray, index: jnp.ndarray) -> jnp.ndarray:
     """Updates the ring buffer at the given index in-place via XLA."""

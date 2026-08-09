@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import jax.numpy as jnp
 
-from config import SimulationConfig
+from nexusai.core.config import SimulationConfig
 
 # ── FRED Data Schemas ──────────────────────────────
 
@@ -17,23 +17,49 @@ class FredMacroIndicator(BaseModel):
 # ── Real Data Client (FRED API) ──────────────────────────────────────
 
 class FredDataClient:
-    """Fetches real-world macroeconomic data directly from FRED CSV endpoints."""
+    """Fetches real-world macroeconomic data directly from FRED API or CSV endpoints."""
     
-    BASE_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
+    BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
+    CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
     
+    def __init__(self):
+        import os
+        self.api_key = os.getenv("FRED_API_KEY")
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        self.session = requests.Session()
+        retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+        self.session.mount("https://", HTTPAdapter(max_retries=retries))
+
     def _fetch_latest_value(self, series_id: str) -> tuple[float, bool]:
-        """Downloads the CSV from FRED and returns the most recent observation."""
-        url = f"{self.BASE_URL}{series_id}"
+        """Downloads data from FRED API or CSV and returns the most recent observation."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
-            # Pandas can read directly from the URL
-            df = pd.read_csv(url)
-            # FRED CSVs have 'observation_date' and the series_id as columns
-            # Get the very last row's value
-            latest_val = float(df[series_id].iloc[-1])
-            return latest_val, False
+            if self.api_key:
+                # Use JSON API if key is available
+                params = {
+                    "series_id": series_id,
+                    "api_key": self.api_key,
+                    "file_type": "json",
+                    "sort_order": "desc",
+                    "limit": 1
+                }
+                response = self.session.get(self.BASE_URL, params=params, timeout=5)
+                response.raise_for_status()
+                data = response.json()
+                if "observations" in data and len(data["observations"]) > 0:
+                    val = float(data["observations"][0]["value"])
+                    return val, False
+            else:
+                # Fallback to the CSV endpoint which doesn't require an API key
+                url = f"{self.CSV_URL}{series_id}"
+                df = pd.read_csv(url)
+                latest_val = float(df[series_id].iloc[-1])
+                return latest_val, False
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"FRED fetch failed for {series_id}, using fallback value. Error: {e}")
             # Fallback values if network fails during fetch
             fallbacks = {

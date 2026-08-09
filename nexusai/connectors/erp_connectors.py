@@ -12,9 +12,15 @@ from datetime import datetime, timedelta
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+import hmac
+import hashlib
+import base64
+import urllib.parse
+import uuid
+from nexusai.core.config import CalibrationProfile
 
-from audit_logger import SecureAuditLogger
+from nexusai.enterprise.audit_logger import SecureAuditLogger
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +255,9 @@ class Oracle_NetSuite_Client:
         self.account_id = account_id.lower().replace("_", "-")
         self.endpoint_url = f"https://{self.account_id}.suitetalk.api.netsuite.com/services/rest/record/v1"
         self.client_id = client_id
+        self.client_secret = client_secret
+        self.token_id = token_id
+        self.token_secret = token_secret
         
         self.is_mock_mode = (self.client_id == "mock_client_id")
         self.mock_fallback_reason = "Initialized with mock_client_id" if self.is_mock_mode else None
@@ -267,12 +276,29 @@ class Oracle_NetSuite_Client:
         
     def _get_auth_headers(self) -> Dict[str, str]:
         """Generates OAuth 1.0 / TBA headers required by SuiteTalk."""
-        # In a real environment, this would generate a signed OAuth1 header using hmac-sha256
         if self.client_id == "mock_client_id":
             return {"Authorization": "Bearer mock_netsuite_token"}
         
-        # Placeholder for actual OAuth1 signature generation
-        return {"Authorization": "OAuth realm=\"1234567\", oauth_consumer_key=\"...\""}
+        timestamp = str(int(time.time()))
+        nonce = uuid.uuid4().hex
+        
+        # Real NetSuite HMAC-SHA256 OAuth 1.0a signature generation
+        base_string = f"{self.account_id}&{self.client_id}&{self.token_id}&{nonce}&{timestamp}"
+        key = f"{self.client_secret}&{self.token_secret}".encode("utf-8")
+        signature = hmac.new(key, base_string.encode("utf-8"), hashlib.sha256).digest()
+        encoded_sig = base64.b64encode(signature).decode("utf-8")
+        
+        auth_header = (
+            f'OAuth realm="{self.account_id}", '
+            f'oauth_consumer_key="{self.client_id}", '
+            f'oauth_token="{self.token_id}", '
+            f'oauth_signature_method="HMAC-SHA256", '
+            f'oauth_timestamp="{timestamp}", '
+            f'oauth_nonce="{nonce}", '
+            f'oauth_version="1.0", '
+            f'oauth_signature="{urllib.parse.quote(encoded_sig)}"'
+        )
+        return {"Authorization": auth_header}
         
     def get_sales_orders(self) -> Dict[str, Any]:
         """Pulls recent Sales Orders from NetSuite to infer live demand."""
@@ -409,7 +435,7 @@ class SAPStateCompiler:
 class ERP_State_Compiler:
     """Legacy compiler, delegates to SAPStateCompiler and Oracle."""
     
-    def compile_firm_state(self, sap_payload: Dict, oracle_payload: Dict) -> Dict[str, float]:
+    def compile_firm_state(self, sap_payload: Dict, oracle_payload: Dict, profile: Optional[CalibrationProfile] = None) -> Dict[str, float]:
         """
         Takes raw ERP data and reduces it to the macro variables.
         """
@@ -430,10 +456,13 @@ class ERP_State_Compiler:
         
         total_demand = sum(valid_demand) if valid_demand else 0.0
         
+        inv_div = profile.erp_inventory_divisor if profile else 1000.0
+        dem_div = profile.erp_demand_divisor if profile else 100.0
+        
         return {
-            "initial_inventory": sap_state["initial_conditions"].get("initial_inventory", 0.0) / 1000.0,
+            "initial_inventory": sap_state["initial_conditions"].get("initial_inventory", 0.0) / inv_div,
             "initial_price": sap_state["initial_conditions"].get("average_cost", 1.0),
-            "implied_demand": total_demand / 100.0
+            "implied_demand": total_demand / dem_div
         }
 
 if __name__ == "__main__":

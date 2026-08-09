@@ -1,8 +1,8 @@
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
-from lmm_model import FirmTransformer
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
+from nexusai.core.lmm_model import FirmTransformer
 
 def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState:
     """LMM-driven Firm Strategy Adjustment, with ZI and Heuristic Baselines."""

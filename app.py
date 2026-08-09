@@ -2,12 +2,12 @@ import streamlit as st
 import pandas as pd
 import jax
 
-from config import SimulationConfig
-from simulation_jax import run_simulation
-from scenarios import SCENARIO_LIST
-from report_generator import generate_pdf_report
-from telematics_connectors import PhysicalShockCompiler
-from checkpoint import load_lmm_checkpoint
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import run_simulation
+from nexusai.core.scenarios import SCENARIO_LIST
+from nexusai.enterprise.report_generator import generate_pdf_report
+from nexusai.connectors.telematics_connectors import PhysicalShockCompiler
+from nexusai.core.checkpoint import load_lmm_checkpoint
 
 GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
 

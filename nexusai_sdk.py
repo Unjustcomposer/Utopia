@@ -7,10 +7,10 @@ Abstracts away the complex JAX engine and exposes a clean, pythonic API.
 
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from simulation_jax import init_sim_state, _run_scan
-from scenarios import generate_shock_matrix
-from data_ingestion import GlobalBaselineCompiler
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state, _run_scan
+from nexusai.core.scenarios import generate_shock_matrix
+from nexusai.connectors.data_ingestion import GlobalBaselineCompiler
 
 class NexusClient:
     def __init__(self, use_live_data=False):
@@ -42,7 +42,7 @@ class NexusClient:
         overrides = None
         if self.use_live_data:
             compiler = GlobalBaselineCompiler(self.config)
-            overrides = compiler.compile_baseline()
+            overrides, _ = compiler.compile_baseline()
             
         state = init_sim_state(self.config, seed=seed, baseline_state_overrides=overrides)
         shocks = jnp.array(generate_shock_matrix(ticks, scenario))

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
 
 def _housing_step(state: SimState, config: SimulationConfig) -> SimState:
     """Agents pay housing maintenance or rent, prices update based on demand."""

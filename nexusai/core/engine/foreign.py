@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
 
 def _foreign_trade_step(state: SimState, config: SimulationConfig) -> SimState:
     foreign, key = state.foreign, state.rng_key

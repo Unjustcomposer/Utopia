@@ -21,7 +21,8 @@ class CalibrationProfile:
     logistics: Dict[str, float] = dataclasses.field(default_factory=dict)
     labor: Dict[str, float] = dataclasses.field(default_factory=dict)
     macro: Dict[str, float] = dataclasses.field(default_factory=dict)
-
+    erp_inventory_divisor: float = 1000.0
+    erp_demand_divisor: float = 100.0
 
 @struct.dataclass
 class SimulationConfig:

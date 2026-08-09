@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from state import SimState
+from nexusai.core.state import SimState
 
 def apply_infrastructure_damage(state: SimState, severity: float) -> SimState:
     """Temporarily zeroes out production capacity for a subset of firms (representing physical damage)."""

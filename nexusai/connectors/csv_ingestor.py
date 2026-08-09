@@ -50,15 +50,31 @@ def ingest_historical_csv(filepath: str) -> Dict[str, jnp.ndarray]:
         logger.error(f"Error converting dataframe to JAX arrays: {e}")
         return {}
 
-def parse_usitc_tariff_csv(filepath: str) -> Dict[str, Any]:
-    """Parses USITC HTS CSV format to a tariff rates dictionary."""
-    logger.info(f"Parsing USITC tariff CSV from {filepath}")
+from nexusai.connectors.usitc_client import UsitcDataClient
+
+def parse_usitc_tariff_csv(filepath: str, hts_codes: list = None) -> Dict[str, Any]:
+    """Parses USITC HTS CSV format to a tariff rates dictionary, or fetches live if possible."""
+    logger.info(f"Attempting to fetch live tariff rates, falling back to CSV {filepath}")
     tariff_rates = {}
+    
+    # Try fetching live first
+    if hts_codes:
+        client = UsitcDataClient()
+        try:
+            live_rates = client.fetch_tariff_rates(hts_codes)
+            if live_rates:
+                tariff_rates.update(live_rates)
+        except Exception as e:
+            logger.warning(f"Live USITC fetch failed: {e}. Falling back to CSV.")
+            
     try:
         df = pd.read_csv(filepath)
         if 'HTS8' in df.columns and 'Rate' in df.columns:
             for _, row in df.iterrows():
-                tariff_rates[str(row['HTS8'])] = float(row['Rate'])
+                code = str(row['HTS8'])
+                # Only use CSV fallback if we didn't get it live
+                if code not in tariff_rates:
+                    tariff_rates[code] = float(row['Rate'])
     except Exception as e:
         logger.error(f"Failed to parse USITC CSV: {e}")
     return tariff_rates

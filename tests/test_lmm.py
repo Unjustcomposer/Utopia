@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from lmm_model import FirmTransformer, get_initial_lmm_params
+from nexusai.core.lmm_model import FirmTransformer, get_initial_lmm_params
 
 def test_lmm_shapes():
     """Verify that the LMM transformer produces the correct output shapes."""

@@ -1,7 +1,7 @@
 import os
 import jwt
 from jwt import PyJWKClient
-from fastapi import HTTPException, Security
+from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import logging
@@ -26,6 +26,7 @@ security = HTTPBearer()
 class User(BaseModel):
     username: str
     tenant_id: str
+    role: str = "analyst"
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
@@ -33,7 +34,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
         if not DEV_MODE:
             raise HTTPException(status_code=401, detail="Mock tokens are only accepted in dev mode")
         logger.warning("SECURITY: Mock token used for authentication — dev mode only")
-        return User(username="local_dev", tenant_id="local_tenant")
+        return User(username="local_dev", tenant_id="local_tenant", role="admin")
         
     try:
         if DEV_MODE and AUTH0_DOMAIN == "dev":
@@ -53,11 +54,17 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
 
         username = payload.get("sub")
         tenant_id = payload.get("https://utopia.com/tenant_id") or payload.get("tenant_id")
+        role = payload.get("https://utopia.com/role") or payload.get("role", "analyst")
         
         if not username or not tenant_id:
             raise HTTPException(status_code=401, detail="Missing user or tenant claim in token")
             
-        return User(username=username, tenant_id=tenant_id)
+        return User(username=username, tenant_id=tenant_id, role=role)
     except jwt.PyJWTError as e:
         logger.error(f"JWT Validation Error: {e}")
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+def get_admin_user(user: User = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+    return user

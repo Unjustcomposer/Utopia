@@ -14,9 +14,9 @@ import jax.numpy as jnp
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import SimulationConfig
-from simulation_jax import init_sim_state, _run_scan
-from scenarios import generate_shock_matrix
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state, _run_scan
+from nexusai.core.scenarios import generate_shock_matrix
 
 def run_optimizer(buffer_targets):
     print("=========================================================")

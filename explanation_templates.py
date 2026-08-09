@@ -20,15 +20,15 @@ SUPPLY_CHAIN_TEMPLATES = {
 }
 
 INSURANCE_TEMPLATES = {
-    "recommendation": "Based on current market conditions, the model recommends {action} by {magnitude:.1f}{unit}.",
-    "primary_driver": "The primary driver is {feature_name}: {description}. This factor has a {direction} influence of {sensitivity:.1f}% on the recommendation.",
-    "risk_if_ignored": "If this adjustment is not made, {risk_scenario}.",
-    "historical_parallel": "A similar pattern was observed during {episode}, where {outcome}.",
+    "recommendation": "Actuarial insight: adjust premium by {magnitude:.1f}{unit} for {action}.",
+    "primary_driver": "Key risk factor: {feature_name} ({description}). Drives {direction} exposure by {sensitivity:.1f}%.",
+    "risk_if_ignored": "Failure to adjust may result in {risk_scenario} due to claims cost inflation.",
+    "historical_parallel": "Compare to the {episode} hard market, resulting in {outcome}.",
 }
 
 POLICY_TEMPLATES = {
-    "recommendation": "Based on current market conditions, the model recommends {action} by {magnitude:.1f}{unit}.",
-    "primary_driver": "The primary driver is {feature_name}: {description}. This factor has a {direction} influence of {sensitivity:.1f}% on the recommendation.",
-    "risk_if_ignored": "If this adjustment is not made, {risk_scenario}.",
-    "historical_parallel": "A similar pattern was observed during {episode}, where {outcome}.",
+    "recommendation": "Policy simulation suggests {action} by {magnitude:.1f}{unit}.",
+    "primary_driver": "Macroeconomic driver: {feature_name} ({description}). Implies a {direction} shock of {sensitivity:.1f}%.",
+    "risk_if_ignored": "Inaction increases systemic risk of {risk_scenario}.",
+    "historical_parallel": "This mirrors the monetary environment of {episode}, which triggered {outcome}.",
 }

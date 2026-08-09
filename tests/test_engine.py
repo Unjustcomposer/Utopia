@@ -2,9 +2,9 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from config import SimulationConfig
-from simulation_jax import init_sim_state
-from engine_jax import simulation_step
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state
+from nexusai.core.engine_jax import simulation_step
 
 def test_sfc_balance_closed_economy():
     """Verify that money is neither created nor destroyed in a closed economy."""

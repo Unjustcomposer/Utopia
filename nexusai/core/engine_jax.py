@@ -14,20 +14,20 @@ import os
 os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
 jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
 
-from config import SimulationConfig
-from state import AgentState, FirmState, MacroState, SimState
-from lmm_model import FirmTransformer
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import AgentState, FirmState, MacroState, SimState
+from nexusai.core.lmm_model import FirmTransformer
 
 
-from engine.credit import _credit_market_step
-from engine.production import _production_step, _wage_payment_step
-from engine.government import _government_step
-from engine.housing import _housing_step
-from engine.foreign import _foreign_trade_step
-from engine.social import _social_network_step, _demographics_step
-from engine.market import _market_clear_step
-from engine.labor import _labor_market_step
-from engine.firm_logic import _firm_adjustment_step, _firm_lifecycle_step
+from nexusai.core.engine.credit import _credit_market_step
+from nexusai.core.engine.production import _production_step, _wage_payment_step
+from nexusai.core.engine.government import _government_step
+from nexusai.core.engine.housing import _housing_step
+from nexusai.core.engine.foreign import _foreign_trade_step
+from nexusai.core.engine.social import _social_network_step, _demographics_step
+from nexusai.core.engine.market import _market_clear_step
+from nexusai.core.engine.labor import _labor_market_step
+from nexusai.core.engine.firm_logic import _firm_adjustment_step, _firm_lifecycle_step
 
 @jax.jit
 def simulation_step(state: SimState, config: SimulationConfig) -> SimState:

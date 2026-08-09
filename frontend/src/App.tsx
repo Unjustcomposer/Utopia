@@ -8,7 +8,7 @@ export default function App() {
   const isLoading = false
   const getAccessTokenSilently = async () => 'mock-token'
   const loginWithRedirect = () => {}
-  const logout = () => { console.log('Mock logout') }
+  const logout = (opts?: any) => { console.log('Mock logout', opts) }
   
   const [scenarios, setScenarios] = useState<string[]>([])
   const [profiles, setProfiles] = useState<string[]>([])
@@ -20,6 +20,7 @@ export default function App() {
   
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any>(null)
+  const [explanation, setExplanation] = useState<string>('')
 
   // Academic / Research Mode (Phase 4.3)
   const [isAcademicMode, setIsAcademicMode] = useState(false)
@@ -41,8 +42,8 @@ export default function App() {
       try {
         const token = await getAccessTokenSilently()
         const headers = { Authorization: `Bearer ${token}` }
-        fetch('/api/scenarios', { headers }).then(r => r.json()).then(setScenarios).catch(console.error)
-        fetch('/api/calibration_profiles', { headers }).then(r => r.json()).then(setProfiles).catch(console.error)
+        fetch('/api/scenarios', { headers }).then(r => r.json()).then(data => setScenarios(Array.isArray(data) ? data : [])).catch(console.error)
+        fetch('/api/calibration_profiles', { headers }).then(r => r.json()).then(data => setProfiles(Array.isArray(data) ? data : [])).catch(console.error)
       } catch (e) {
         console.error("Failed to fetch initial data", e)
       }
@@ -75,6 +76,23 @@ export default function App() {
       })
       const data = await res.json()
       setResults(data)
+      
+      try {
+        const explainRes = await fetch('/api/explain?format=executive', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({})
+        })
+        const explainData = await explainRes.json()
+        setExplanation(explainData.explanation || explainData.raw_output || "Explanation could not be generated.")
+      } catch (explainErr) {
+        console.error("Failed to fetch explanation", explainErr)
+        setExplanation("Failed to load LMM explanation.")
+      }
+      
     } catch (e) {
       console.error(e)
       alert("Error running simulation.")
@@ -302,10 +320,14 @@ export default function App() {
           
           <div className="explanation">
             <h3>LMM Policy Explanation</h3>
-            <p style={{color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
-              The scenario shows that the tariff shock led to an increase in input costs, forcing firms to raise prices (Price Index: {results.scenario.summary.mean_price_index.toFixed(2)} vs {results.baseline.summary.mean_price_index.toFixed(2)}). 
-              This caused aggregate demand to drop, increasing unemployment to {(results.scenario.summary.mean_unemployment * 100).toFixed(1)}%.
-            </p>
+            <div style={{color: 'var(--text-secondary)', marginTop: '0.5rem', whiteSpace: 'pre-wrap', fontFamily: 'monospace'}}>
+              {explanation ? explanation : (
+                <p>
+                  The scenario shows that the tariff shock led to an increase in input costs, forcing firms to raise prices (Price Index: {results.scenario.summary.mean_price_index.toFixed(2)} vs {results.baseline.summary.mean_price_index.toFixed(2)}). 
+                  This caused aggregate demand to drop, increasing unemployment to {(results.scenario.summary.mean_unemployment * 100).toFixed(1)}%.
+                </p>
+              )}
+            </div>
           </div>
           
           <div className="export-buttons">

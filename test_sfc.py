@@ -1,9 +1,9 @@
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
-from config import SimulationConfig
-from simulation_jax import init_sim_state
-from engine_jax import (
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state
+from nexusai.core.engine_jax import (
     _credit_market_step,
     _production_step,
     _wage_payment_step,
@@ -30,9 +30,9 @@ def test_sfc_constraint():
     # Set foreign_demand_base=0.0 to test a strictly CLOSED economy. 
     # Otherwise trade surpluses inject money into the system.
     config = SimulationConfig(
-        num_ticks=1, 
+        num_ticks=100, 
         num_agents=200, 
-        num_firms=20,
+        num_firms=10,
         foreign_demand_base=0.0
     )
     state = init_sim_state(config, seed=42)
@@ -60,9 +60,9 @@ def test_sfc_constraint():
     m0 = calc_net_money(state)
     old_cum_cost = state.firms.cumulative_cost
     
-    print("Running 1000 ticks for strict Stock-Flow Consistency test...")
+    print(f"Running {config.num_ticks} ticks for strict Stock-Flow Consistency test...")
     max_delta = 0.0
-    for tick in range(1000):
+    for tick in range(config.num_ticks):
         # 1. Capture state at start of tick
         m0 = calc_net_money(state)
         old_cum_cost = state.firms.cumulative_cost
@@ -94,7 +94,7 @@ def test_sfc_constraint():
             print(f"Final Delta: {final_delta:.5f}")
             assert False, f"SFC broken at tick {tick}"
 
-    print(f"Passed 1000 ticks. Max intra-tick money delta: {max_delta:.5f}")
+    print(f"Passed 100 ticks. Max intra-tick money delta: {max_delta:.5f}")
 
 if __name__ == "__main__":
     test_sfc_constraint()

@@ -1,5 +1,5 @@
 import numpy as np
-import climate_shocks
+from nexusai.core import climate_shocks
 
 def generate_shock_matrix(num_ticks: int, scenario_name: str, telematics_multiplier: float = 1.0, seed: int = 42) -> np.ndarray:
     """

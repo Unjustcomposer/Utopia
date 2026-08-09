@@ -55,7 +55,7 @@ def test_cli_report():
         capture_output=True, text=True, timeout=120
     )
     assert result.returncode == 0
-    assert "NexusAI_Report_baseline.pdf" in result.stdout
+    assert "Report successfully generated" in result.stdout
 
 @pytest.mark.integration
 def test_cli_demo():
@@ -64,4 +64,4 @@ def test_cli_demo():
         capture_output=True, text=True, timeout=120
     )
     assert result.returncode == 0
-    assert "Executing Full Feature Demo" in result.stdout
+    assert "Running Interactive Demo Mode..." in result.stdout

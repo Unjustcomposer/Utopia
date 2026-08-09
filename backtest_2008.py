@@ -2,10 +2,10 @@ import jax
 import jax.numpy as jnp
 import os
 import pandas as pd
-from config import SimulationConfig
-from simulation_jax import init_sim_state
-from engine_jax import simulation_step
-from shocks import apply_demand_shock, apply_supply_chain_disruption
+from nexusai.core.config import SimulationConfig
+from nexusai.core.simulation_jax import init_sim_state
+from nexusai.core.engine_jax import simulation_step
+from nexusai.core.shocks import apply_demand_shock, apply_supply_chain_disruption
 
 def run_2008_scenario(firm_behavior_mode: int) -> dict:
     """
@@ -19,7 +19,7 @@ def run_2008_scenario(firm_behavior_mode: int) -> dict:
         firm_behavior_mode=firm_behavior_mode
     )
     
-    from checkpoint import load_lmm_checkpoint
+    from nexusai.core.checkpoint import load_lmm_checkpoint
     lmm_params = load_lmm_checkpoint() if firm_behavior_mode == 0 else None
     
     state = init_sim_state(config, seed=2008, lmm_params=lmm_params)

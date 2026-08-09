@@ -23,17 +23,17 @@ import pandas as pd
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, User
-from database import get_db, SimulationResult
-from rate_limit import limiter
-from data_ingestion import GlobalBaselineCompiler
+from nexusai.enterprise.auth import get_current_user, User, get_admin_user
+from nexusai.enterprise.database import get_db, SimulationResult
+from nexusai.enterprise.rate_limit import limiter
+from nexusai.connectors.data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-from audit_logger import SecureAuditLogger
+from nexusai.enterprise.audit_logger import SecureAuditLogger
 
-from config import SimulationConfig
+from nexusai.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
-from checkpoint import load_lmm_checkpoint
+from nexusai.core.checkpoint import load_lmm_checkpoint
 import jwt
 
 GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
@@ -86,7 +86,7 @@ app.add_middleware(
 
 from fastapi.staticfiles import StaticFiles
 import glob
-from scenarios import SCENARIO_LIST
+from nexusai.core.scenarios import SCENARIO_LIST
 
 # Endpoints for Frontend Phase 2.1
 @app.get("/api/calibration_profiles")
@@ -96,7 +96,7 @@ async def get_calibration_profiles(user: User = Depends(get_current_user)):
 
 @app.get("/api/erp/status")
 async def get_erp_status(user: User = Depends(get_current_user)):
-    from erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
+    from nexusai.connectors.erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
     sap = SAP_ERP_Client()
     oracle = Oracle_NetSuite_Client()
     return {
@@ -106,7 +106,7 @@ async def get_erp_status(user: User = Depends(get_current_user)):
     }
 
 @app.post("/api/admin/reload-model")
-async def reload_model(user: User = Depends(get_current_user)):
+async def reload_model(user: User = Depends(get_admin_user)):
     global GLOBAL_LMM_PARAMS
     GLOBAL_LMM_PARAMS = load_lmm_checkpoint()
     loaded = GLOBAL_LMM_PARAMS is not None
@@ -218,7 +218,7 @@ class RunRequest(BaseModel):
     firm_behavior_mode: int = Field(default=0, ge=0, le=2)
 
 def _ray_run_simulation(config, seed, scenario="baseline", lmm_params=None):
-    from simulation_jax import run_simulation
+    from nexusai.core.simulation_jax import run_simulation
     # We use the new JAX engine directly
     return run_simulation(config=config, seed=seed, scenario=scenario, lmm_params=lmm_params)
 
@@ -368,7 +368,7 @@ async def ingest_agents_csv(
 
 @app.post("/api/ingest_global_baseline")
 @limiter.limit("2/minute")
-async def ingest_global_baseline(request: Request, user: User = Depends(get_current_user)):
+async def ingest_global_baseline(request: Request, user: User = Depends(get_admin_user)):
     """
     Triggers the alternative data ingestion pipeline (Credit Cards, Satellite, Shipping)
     to compile a real-world snapshot into JAX tensors and run the simulation from that baseline.
@@ -380,7 +380,7 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_curr
         overrides, is_fallback = await asyncio.to_thread(compiler.compile_baseline)
         
         logger.info("Baseline compiled successfully. Initiating JAX Simulation with overrides.")
-        from simulation_jax import run_simulation
+        from nexusai.core.simulation_jax import run_simulation
         result = await asyncio.to_thread(run_simulation, config=config, seed=42, scenario="baseline", baseline_state_overrides=overrides)
         
         # Optionally save to DB here...
@@ -417,8 +417,8 @@ async def handle_api_explain(
     user: User = Depends(get_current_user)
 ):
     try:
-        from lmm_explain import explain_firm_policy, generate_executive_explanation
-        from lmm_model import get_initial_lmm_params
+        from nexusai.core.lmm_explain import explain_firm_policy, generate_executive_explanation
+        from nexusai.core.lmm_model import get_initial_lmm_params
         import jax
         import jax.numpy as jnp
         

@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
 
 def _credit_market_step(state: SimState, config: SimulationConfig) -> SimState:
     """Endogenous credit and deposit step."""

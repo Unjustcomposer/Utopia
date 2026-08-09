@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from typing import Dict, Any, List
 
-from lmm_model import FirmTransformer
+from nexusai.core.lmm_model import FirmTransformer
 
 def explain_firm_policy(params: Any, lmm_inputs: jnp.ndarray) -> Dict[str, Any]:
     """

@@ -10,8 +10,8 @@ economically valid shock dynamics for version 1.
 
 import jax
 import jax.numpy as jnp
-from config import SimulationConfig
-from state import SimState
+from nexusai.core.config import SimulationConfig
+from nexusai.core.state import SimState
 
 def apply_interest_rate_hike(state: SimState, hike_amount: float = 0.02) -> SimState:
     """Increases the macro base rate."""

@@ -1,8 +1,8 @@
 import pytest
 import jax.numpy as jnp
-from config import SimulationConfig
-from data_ingestion import GlobalBaselineCompiler, FredMacroIndicator, FredDataClient
-from simulation_jax import init_sim_state
+from nexusai.core.config import SimulationConfig
+from nexusai.connectors.data_ingestion import GlobalBaselineCompiler, FredMacroIndicator, FredDataClient
+from nexusai.core.simulation_jax import init_sim_state
 import datetime
 
 def test_pydantic_validation():
@@ -30,7 +30,7 @@ def test_fred_client_fallback(monkeypatch):
 def test_compiler_output_shapes():
     config = SimulationConfig(num_agents=50, num_firms=10, num_regions=3)
     compiler = GlobalBaselineCompiler(config)
-    overrides = compiler.compile_baseline()
+    overrides, _ = compiler.compile_baseline()
     
     assert "agent_budgets" in overrides
     assert overrides["agent_budgets"].shape == (50,)
@@ -41,7 +41,7 @@ def test_compiler_output_shapes():
 def test_init_state_with_overrides():
     config = SimulationConfig(num_agents=50, num_firms=10, num_regions=3)
     compiler = GlobalBaselineCompiler(config)
-    overrides = compiler.compile_baseline()
+    overrides, _ = compiler.compile_baseline()
     
     # Initialize without overrides
     state_default = init_sim_state(config, seed=42)
