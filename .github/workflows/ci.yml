@@ -23,6 +23,13 @@ jobs:
     - name: Run Pytest
       run: |
         pytest tests/ -v --cov=.
+      env:
+        AUTH0_DOMAIN: dev
     - name: Run Integration Tests
       run: |
         pytest tests/test_cli_integration.py -v -m integration --timeout=300
+    - name: Run Scientific Regression Tests
+      run: |
+        pytest tests/test_regression.py -v -m regression
+      env:
+        FRED_API_KEY: ${{ secrets.FRED_API_KEY }}

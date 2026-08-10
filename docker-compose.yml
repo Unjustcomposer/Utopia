@@ -22,9 +22,9 @@ services:
       - .:/app
     environment:
       - DATABASE_URL=postgresql://utopia:utopia_dev@db:5432/utopia
-      - AUTH0_DOMAIN=dev
-      - UTOPIA_DEV_MODE=true
-      # JWT_SECRET=<generate-a-real-secret>
+      - AUTH0_DOMAIN=${AUTH0_DOMAIN}
+      - UTOPIA_DEV_MODE=${UTOPIA_DEV_MODE:-false}
+      - JWT_SECRET=${JWT_SECRET}
       # For local dev without docker: DATABASE_URL=sqlite:///./utopia.db
 
   dashboard:

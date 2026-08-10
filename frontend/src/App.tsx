@@ -54,7 +54,7 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = isDevMode ? 'mock-token' : await getAccessTokenSilently()
+        const token = await getAccessTokenSilently()
         const headers = { Authorization: `Bearer ${token}` }
         fetch('/api/scenarios', { headers }).then(r => r.json()).then(data => setScenarios(Array.isArray(data) ? data : [])).catch(console.error)
         fetch('/api/calibration_profiles', { headers }).then(r => r.json()).then(data => setProfiles(Array.isArray(data) ? data : [])).catch(console.error)
@@ -71,7 +71,7 @@ export default function App() {
   const runSimulation = async () => {
     setLoading(true)
     try {
-      const token = isDevMode ? 'mock-token' : await getAccessTokenSilently()
+      const token = await getAccessTokenSilently()
       const res = await fetch('/api/run/compare', {
         method: 'POST',
         headers: { 
