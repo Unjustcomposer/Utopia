@@ -81,6 +81,10 @@ def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState
     capital_added = investment / jnp.maximum(config.capital_cost, 1.0)
     new_capital_goods = new_capital_goods + capital_added
     
+    # SFC Leak Fix: Route capital investment to government
+    total_investment = jnp.sum(investment)
+    new_gov_cash = state.gov.cash + total_investment
+
     new_firms = firms._replace(
         price=final_price,
         wage_offer=new_wage_offer,
@@ -88,7 +92,7 @@ def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState
         capital_goods=new_capital_goods,
         cash=firms.cash - investment
     )
-    return state._replace(firms=new_firms, rng_key=key)
+    return state._replace(firms=new_firms, rng_key=key, gov=state.gov._replace(cash=new_gov_cash))
 
 
 def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
