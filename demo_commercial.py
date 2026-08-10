@@ -27,8 +27,8 @@ def main():
     print("\n[STEP 3/3] Proving the Policy Moat (2008 Historical Crisis Backtest)")
     print("--------------------------------------------------------------------------")
     try:
-        from backtest_2008 import run_comparative_backtest
-        run_comparative_backtest()
+        from backtest_historical import run_backtest
+        run_backtest('2008')
         
         print("\n*** THE NEXUS AI VALUE PROPOSITION ***")
         print("The heuristic policy — the kind of hand-coded rule every vendor ABM uses —")

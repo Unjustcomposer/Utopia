@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from utopia.core.config import SimulationConfig
-from utopia.core.state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState
+from utopia.core.state import AgentState, FirmState, MacroState, GovState, HousingState, ForeignState, SimState, LogisticsState
 from utopia.core.engine_jax import simulation_step
 from utopia.core.lmm_model import get_initial_lmm_params
 
@@ -120,7 +120,9 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     key, subkey = jax.random.split(key)
     cash = jax.random.uniform(subkey, (config.num_firms,), minval=config.initial_firm_cash_min, maxval=config.initial_firm_cash_max)
     
-    inventory = jnp.full(config.num_firms, 10.0)
+    inventory = jnp.zeros((config.num_firms, config.num_goods, config.max_shelf_life), dtype=jnp.float32)
+    # Put initial inventory in the "freshest" slot
+    inventory = inventory.at[:, :, -1].set(10.0)
     
     key, subkey = jax.random.split(key)
     price = jax.random.uniform(subkey, (config.num_firms,), minval=10.0, maxval=20.0)
@@ -144,7 +146,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     
     is_active = jnp.ones(config.num_firms, dtype=jnp.float32)
     capital_goods = jnp.ones(config.num_firms) * 10.0
-    equity = cash + inventory * price + capital_goods * config.capital_cost - debt
+    equity = cash + jnp.sum(inventory, axis=(1, 2)) * price + capital_goods * config.capital_cost - debt
     
     key, subkey = jax.random.split(key)
     firm_region_id = jax.random.randint(subkey, (config.num_firms,), 0, config.num_regions)
@@ -157,7 +159,16 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
         if "firm_cash" in baseline_state_overrides:
             cash = baseline_state_overrides["firm_cash"]
             # Recalculate equity
-            equity = cash + inventory * price + capital_goods * config.capital_cost - debt
+            equity = cash + jnp.sum(inventory, axis=(1, 2)) * price + capital_goods * config.capital_cost - debt
+    
+    in_transit_inventory = jnp.zeros((config.num_firms, config.num_goods, config.max_transit_delay), dtype=jnp.float32)
+    
+    # Phase 3
+    key, subkey = jax.random.split(key)
+    lat = jax.random.uniform(subkey, (config.num_firms,), minval=-90.0, maxval=90.0)
+    key, subkey = jax.random.split(key)
+    lon = jax.random.uniform(subkey, (config.num_firms,), minval=-180.0, maxval=180.0)
+    bi_claims = jnp.zeros((config.num_firms,), dtype=jnp.float32)
     
     firms = FirmState(
         good_produced=good_produced, cash=cash, inventory=inventory, price=price, quality=quality,
@@ -166,7 +177,9 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
         demand_history=demand_history, revenue_history=revenue_history, price_history=price_history,
         profit_history=profit_history, input_cost_multiplier=input_cost_multiplier,
         is_active=is_active, capital_goods=capital_goods, equity=equity,
-        region_id=firm_region_id, menu_cost_paid=menu_cost_paid
+        region_id=firm_region_id, menu_cost_paid=menu_cost_paid,
+        in_transit_inventory=in_transit_inventory,
+        lat=lat, lon=lon, bi_claims=bi_claims
     )
     
     # 3. Macro
@@ -199,6 +212,14 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
         cash=jnp.array(0.0)
     )
     
+    # 6. Logistics (Phase 1.3 -> 2.6 Vectorized)
+    logistics = LogisticsState(
+        port_capacity=jnp.full((config.num_regions,), config.base_port_capacity),
+        port_queue=jnp.zeros((config.num_regions,)),
+        dwell_time=jnp.ones((config.num_regions,), dtype=jnp.int32),  # Default 1 tick delay
+        telematics_multiplier=jnp.ones((config.num_regions,))
+    )
+    
     # Initialize LMM Transformer Weights
     key, subkey = jax.random.split(key)
     if config.firm_behavior_mode == 0 and lmm_params is None:
@@ -211,7 +232,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     elif lmm_params is None:
         lmm_params = get_initial_lmm_params(subkey)
     
-    return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, rng_key=key, lmm_params=lmm_params)
+    return SimState(agents=agents, firms=firms, macro=macro, gov=gov, housing=housing, foreign=foreign, logistics=logistics, rng_key=key, lmm_params=lmm_params)
 
 
 from utopia.core import climate_shocks
@@ -221,14 +242,20 @@ from utopia.core import climate_shocks
 def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig, shocks_matrix: jnp.ndarray):
     
     def scan_body(state, tick_shocks):
-        hike_amt, savings_inc, cost_mult, infra_damage, route_closure = tick_shocks
+        hike_amt = tick_shocks[0]
+        savings_inc = tick_shocks[1]
+        cost_mult = tick_shocks[2]
+        infra_damage = tick_shocks[3]
+        route_closure = tick_shocks[4]
+        telematics_mult = tick_shocks[5:]
         
         # Apply shocks
         new_macro = state.macro._replace(base_rate=state.macro.base_rate + hike_amt)
         new_agents = state.agents._replace(savings_rate=jnp.clip(state.agents.savings_rate + savings_inc, 0.0, 0.9))
         new_firms = state.firms._replace(input_cost_multiplier=state.firms.input_cost_multiplier * cost_mult)
+        new_logistics = state.logistics._replace(telematics_multiplier=telematics_mult)
         
-        shocked_state = state._replace(macro=new_macro, agents=new_agents, firms=new_firms)
+        shocked_state = state._replace(macro=new_macro, agents=new_agents, firms=new_firms, logistics=new_logistics)
         
         # Apply climate shocks
         shocked_state = jax.lax.cond(
@@ -345,7 +372,10 @@ class JAXSimulation:
         for i in range(self.config.num_firms):
             final_firms.append({
                 "id": i,
-                "profit": float(final_state.firms.cumulative_revenue[i] - final_state.firms.cumulative_cost[i])
+                "profit": float(final_state.firms.cumulative_revenue[i] - final_state.firms.cumulative_cost[i]),
+                "lat": float(final_state.firms.lat[i]),
+                "lon": float(final_state.firms.lon[i]),
+                "bi_claims": float(final_state.firms.bi_claims[i])
             })
             
         # Generate LMM explanation based on final state

@@ -36,7 +36,7 @@ class AgentState(NamedTuple):
 class FirmState(NamedTuple):
     good_produced: jnp.ndarray    # (num_firms,) int
     cash: jnp.ndarray             # (num_firms,)
-    inventory: jnp.ndarray        # (num_firms,)
+    inventory: jnp.ndarray        # (num_firms, num_goods, max_shelf_life) float32
     price: jnp.ndarray            # (num_firms,)
     quality: jnp.ndarray          # (num_firms,)
     production_capacity: jnp.ndarray # (num_firms,)
@@ -60,6 +60,14 @@ class FirmState(NamedTuple):
     equity: jnp.ndarray           # (num_firms,) float (SFC accounting)
     region_id: jnp.ndarray        # (num_firms,) int
     menu_cost_paid: jnp.ndarray   # (num_firms,) boolean
+    
+    # Phase 1.3 expansions
+    in_transit_inventory: jnp.ndarray # (num_firms, num_goods, max_transit_delay)
+    
+    # Phase 3 expansions
+    lat: jnp.ndarray              # (num_firms,) float
+    lon: jnp.ndarray              # (num_firms,) float
+    bi_claims: jnp.ndarray        # (num_firms,) float
 
 class MacroState(NamedTuple):
     deposits: jnp.ndarray         # scalar
@@ -86,6 +94,12 @@ class ForeignState(NamedTuple):
     imports: jnp.ndarray          # scalar
     cash: jnp.ndarray             # scalar
 
+class LogisticsState(NamedTuple):
+    port_capacity: jnp.ndarray    # (num_regions,)
+    port_queue: jnp.ndarray       # (num_regions,)
+    dwell_time: jnp.ndarray       # (num_regions,) int (0 to max_transit_delay-1)
+    telematics_multiplier: jnp.ndarray # (num_regions,)
+
 class SimState(NamedTuple):
     agents: AgentState
     firms: FirmState
@@ -93,5 +107,6 @@ class SimState(NamedTuple):
     gov: GovState
     housing: HousingState
     foreign: ForeignState
+    logistics: LogisticsState
     rng_key: jnp.ndarray          # PRNG key for jax.random
     lmm_params: dict              # Flax PyTree of LMM weights

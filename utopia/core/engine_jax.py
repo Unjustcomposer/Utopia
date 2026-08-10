@@ -23,6 +23,7 @@ from utopia.core.engine.credit import _credit_market_step
 from utopia.core.engine.production import _production_step, _wage_payment_step
 from utopia.core.engine.government import _government_step
 from utopia.core.engine.housing import _housing_step
+from utopia.core.engine.logistics import _logistics_step
 from utopia.core.engine.foreign import _foreign_trade_step
 from utopia.core.engine.social import _social_network_step, _demographics_step
 from utopia.core.engine.market import _market_clear_step
@@ -40,6 +41,7 @@ def simulation_step(state: SimState, config: SimulationConfig) -> SimState:
     m0 = calc_net_money(state)
     
     state = _credit_market_step(state, config)
+    state = _logistics_step(state, config)
     state = _production_step(state, config)
     state = _wage_payment_step(state, config)
     state = _government_step(state, config)

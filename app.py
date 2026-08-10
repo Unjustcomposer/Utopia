@@ -28,20 +28,27 @@ st.sidebar.header("Physical Telematics")
 st.sidebar.markdown("Ground macroeconomic shocks in real-world physical reality.")
 
 if 'telematics_multiplier' not in st.session_state:
-    st.session_state.telematics_multiplier = 1.0
-    st.session_state.telematics_summary = "Normal Operations"
+    import numpy as np
+    st.session_state.telematics_multiplier = np.ones(3, dtype=np.float32)
+    st.session_state.telematics_summary = ["Normal"] * 3
     
-if st.sidebar.button("📡 Ingest Live Weather & Shipping Delays", use_container_width=True):
-    with st.spinner("Polling NOAA and Project44 APIs..."):
-        compiler = PhysicalShockCompiler()
+if st.sidebar.button("📡 Ingest Live AIS & Aviation Streams", use_container_width=True):
+    with st.spinner("Polling Live AIS & Flight Data..."):
+        compiler = PhysicalShockCompiler(num_regions=3)
         mult, summary = compiler.compile_live_shock()
         st.session_state.telematics_multiplier = mult
         st.session_state.telematics_summary = summary
         
-if st.session_state.telematics_multiplier > 1.0:
+if isinstance(st.session_state.telematics_multiplier, np.ndarray) and (st.session_state.telematics_multiplier > 1.0).any():
+    st.sidebar.error("**Live Regional Risk Detected!**")
+    regions = ["North America", "Europe", "Asia"]
+    for i in range(3):
+        if st.session_state.telematics_multiplier[i] > 1.0:
+            st.sidebar.warning(f"**{regions[i]}**: {st.session_state.telematics_summary[i]} (Mult: {st.session_state.telematics_multiplier[i]:.2f}x)")
+elif not isinstance(st.session_state.telematics_multiplier, np.ndarray) and st.session_state.telematics_multiplier > 1.0:
     st.sidebar.error(f"**Live Risk Detected!**\n\n{st.session_state.telematics_summary}\n\n*Applied Cost Multiplier: {st.session_state.telematics_multiplier:.2f}x*")
 else:
-    st.sidebar.success("All clear. No immediate weather or shipping risks.")
+    st.sidebar.success("All clear. No immediate regional shipping risks.")
 
 mode_map = {"LMM": 0, "Zero-Intelligence": 1, "Heuristic": 2}
 config = SimulationConfig(
@@ -101,5 +108,34 @@ if st.session_state.metrics_history:
 
     with st.expander("Raw Data Table"):
         st.dataframe(df)
+        
+    st.markdown("### 🌍 Geospatial Risk & BI Claims Overlay")
+    if st.session_state.last_result and hasattr(st.session_state.last_result, 'final_firms'):
+        firm_data = pd.DataFrame(st.session_state.last_result.final_firms)
+        if 'lat' in firm_data.columns and 'lon' in firm_data.columns:
+            st.markdown("Actuarial Business Interruption (BI) Claims mapped to physical factory coordinates. Red nodes represent accumulated capacity losses.")
+            # Normalize bi_claims for visual radius
+            firm_data["radius"] = firm_data["bi_claims"].apply(lambda x: 100000 + (x * 500000))
+            firm_data["color"] = firm_data["bi_claims"].apply(lambda x: [255, 0, 0, 160] if x > 0.1 else [0, 255, 0, 160])
+            
+            import pydeck as pdk
+            st.pydeck_chart(pdk.Deck(
+                map_style=None,
+                initial_view_state=pdk.ViewState(
+                    latitude=0,
+                    longitude=0,
+                    zoom=1,
+                    pitch=0,
+                ),
+                layers=[
+                    pdk.Layer(
+                        'ScatterplotLayer',
+                        data=firm_data,
+                        get_position='[lon, lat]',
+                        get_color='color',
+                        get_radius='radius',
+                    ),
+                ],
+            ))
 else:
     st.info("Adjust parameters in the sidebar and click 'Run Simulation' to see results.")

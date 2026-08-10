@@ -14,7 +14,8 @@ def test_sfc_balance_closed_economy():
         num_goods=2,
         num_ticks=500,
         firm_behavior_mode=2,  # Heuristic mode
-        foreign_demand_base=0.0 # Force a closed economy for exact SFC testing
+        foreign_demand_base=0.0, # Force a closed economy for exact SFC testing
+        bom_matrix=jnp.zeros((2, 2))
     )
     
     # Initialize state
@@ -47,7 +48,8 @@ def test_engine_no_nans():
         num_firms=5,
         num_goods=2,
         num_ticks=5,
-        firm_behavior_mode=2
+        firm_behavior_mode=2,
+        bom_matrix=jnp.zeros((2, 2))
     )
     
     state = init_sim_state(config, seed=42)
@@ -59,3 +61,34 @@ def test_engine_no_nans():
     assert not jnp.any(jnp.isnan(state.agents.budget))
     assert not jnp.any(jnp.isnan(state.firms.cash))
     assert not jnp.any(jnp.isnan(state.macro.price_index))
+
+def test_logistics_bottleneck():
+    """Verify that port congestion correctly increases delivery delays."""
+    config = SimulationConfig(
+        num_agents=10,
+        num_firms=2,
+        num_goods=2,
+        num_ticks=1,
+        firm_behavior_mode=2,
+        max_transit_delay=10,
+        base_port_capacity=10.0,
+        bom_matrix=jnp.zeros((2, 2))
+    )
+    
+    state = init_sim_state(config, seed=42)
+    
+    # Inject massive backlog into in_transit_inventory
+    # Firms have 100 goods in transit at index 1 (not arriving next tick)
+    massive_transit = jnp.zeros((2, 2, 10), dtype=jnp.float32)
+    massive_transit = massive_transit.at[:, :, 1].set(100.0)
+    
+    state = state._replace(
+        firms=state.firms._replace(in_transit_inventory=massive_transit),
+        logistics=state.logistics._replace(port_capacity=jnp.full((config.num_regions,), 10.0))
+    )
+    
+    # Run 1 tick
+    next_state = simulation_step(state, config)
+    
+    assert jnp.any(next_state.logistics.port_queue > 0.0)
+    assert jnp.any(next_state.logistics.dwell_time > 1)

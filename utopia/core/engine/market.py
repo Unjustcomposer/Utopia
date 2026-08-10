@@ -18,11 +18,13 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
         
     prices = jax.vmap(get_avg_price)(jnp.arange(num_goods))
     
-    def get_total_supply(g):
-        mask = firms.good_produced == g
-        return jnp.sum(jnp.maximum(firms.inventory, 0.0) * mask)
+    def get_supply_by_good_and_region(g, r):
+        mask = (firms.good_produced == g) & (firms.region_id == r)
+        return jnp.sum(jnp.maximum(jnp.sum(firms.inventory[:, g], axis=-1), 0.0) * mask)
         
-    supply = jax.vmap(get_total_supply)(jnp.arange(num_goods))
+    supply_gr = jax.vmap(lambda g: jax.vmap(lambda r: get_supply_by_good_and_region(g, r))(jnp.arange(config.num_regions)))(jnp.arange(num_goods))
+    supply = jnp.sum(supply_gr, axis=1)
+    supply_shares = jnp.where(supply[:, None] > 0, supply_gr / supply[:, None], 1.0 / config.num_regions)
     
     # 2. Agent CES Demand Calculation
     save_amount = agents.budget * agents.savings_rate * (1.0 + agents.risk_aversion * 0.5)
@@ -55,7 +57,28 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
     
     # Smooth foreign trade export demand
     export_demand_per_good = state.foreign.exports / num_goods
-    total_demand_per_good = quantities.sum(axis=0) + export_demand_per_good
+    
+    # 2.b. Firm B2B Procurement Demand (JIT Heuristic)
+    def firm_procurement_demand(firm_idx):
+        g = firms.good_produced[firm_idx]
+        target_inputs = firms.production_capacity[firm_idx] * config.bom_matrix[g]
+        current_inputs = jnp.sum(firms.inventory[firm_idx], axis=-1)
+        deficit = jnp.maximum(target_inputs - current_inputs, 0.0)
+        
+        buyer_region = firms.region_id[firm_idx]
+        avg_tariff_per_good = jnp.sum(supply_shares * config.tariff_matrix[buyer_region, :][None, :], axis=1)
+        tariffed_prices = safe_prices * avg_tariff_per_good
+        
+        cost = jnp.sum(deficit * tariffed_prices)
+        cash = firms.cash[firm_idx]
+        budget_ratio = jnp.where(cost > 0, jnp.minimum(cash / cost, 1.0), 1.0)
+        return deficit * budget_ratio
+
+    firm_ids = jnp.arange(firms.cash.shape[0])
+    firm_b2b_demand_matrix = jax.vmap(firm_procurement_demand)(firm_ids)
+    total_b2b_demand_per_good = jnp.sum(firm_b2b_demand_matrix, axis=0)
+
+    total_demand_per_good = quantities.sum(axis=0) + export_demand_per_good + total_b2b_demand_per_good
     
     # 3. Market Clearing (Proportional Rationing to avoid M log M sort)
     # Ratio of supply to demand per good
@@ -85,7 +108,7 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
     # Allocate firm sales proportionally to their inventory share of the good
     def calc_firm_sales(i):
         g = firms.good_produced[i]
-        firm_inv = jnp.maximum(firms.inventory[i], 0.0)
+        firm_inv = jnp.maximum(jnp.sum(firms.inventory[i, g], axis=-1), 0.0)
         good_supply = supply[g]
         safe_supply = jnp.where(good_supply > 0, good_supply, 1.0)
         share = jnp.where(good_supply > 0, firm_inv / safe_supply, 0.0)
@@ -102,11 +125,34 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
     firm_volumes, firm_revenues, firm_demands = jax.vmap(calc_firm_sales)(firm_indices)
     
     total_received_by_firms = jnp.sum(firm_revenues)
-    float_leak = (total_spent_by_agents + total_spent_by_foreign) - total_received_by_firms
-    new_gov_cash = state.gov.cash + jnp.sum(transport_cost) + float_leak
     
-    new_inventory = firms.inventory - firm_volumes
-    new_cash = firms.cash + firm_revenues
+    # Process B2B actual purchases and costs
+    actual_b2b_purchased = firm_b2b_demand_matrix * ratio[None, :] # (num_firms, num_goods)
+    
+    avg_tariffs = jnp.sum(supply_shares[None, :, :] * config.tariff_matrix[firms.region_id, :][:, None, :], axis=2)
+    b2b_cost_per_firm = jnp.sum(actual_b2b_purchased * safe_prices[None, :] * avg_tariffs, axis=1)
+    total_spent_by_firms = jnp.sum(b2b_cost_per_firm)
+    
+    # Tariffs are collected by the government as revenue (friction)
+    tariff_revenue = jnp.sum(actual_b2b_purchased * safe_prices[None, :] * (avg_tariffs - 1.0))
+    
+    float_leak = (total_spent_by_agents + total_spent_by_foreign + total_spent_by_firms) - total_received_by_firms - tariff_revenue
+    new_gov_cash = state.gov.cash + jnp.sum(transport_cost) + tariff_revenue + float_leak
+    
+    # 1. Decrease inventory for sales (output good) using FIFO
+    sales_inv = firms.inventory[firm_indices, firms.good_produced]
+    cumsum_sales = jnp.cumsum(sales_inv, axis=-1)
+    remaining_sales = jnp.maximum(0.0, cumsum_sales - firm_volumes[:, None])
+    zero_prepend_sales = jnp.zeros_like(remaining_sales[:, :1])
+    new_sales_inv = jnp.diff(jnp.concatenate([zero_prepend_sales, remaining_sales], axis=-1), axis=-1)
+    new_inventory = firms.inventory.at[firm_indices, firms.good_produced].set(new_sales_inv)
+    # 2. Increase in_transit_inventory for procured inputs (Phase 1.3 -> 2.6 Vectorized)
+    firm_dwell_times = state.logistics.dwell_time[firms.region_id] # (num_firms,)
+    delay_mask = (jnp.arange(config.max_transit_delay) == firm_dwell_times[:, None]) # (num_firms, max_delay)
+    add_tensor = actual_b2b_purchased[:, :, None] * delay_mask[:, None, :] # (num_firms, num_goods, max_delay)
+    new_in_transit = firms.in_transit_inventory + add_tensor
+    
+    new_cash = firms.cash + firm_revenues - b2b_cost_per_firm
     new_cum_revenue = firms.cumulative_revenue + firm_revenues
     
     # Update histories (O(1) ring buffer)
@@ -123,6 +169,7 @@ def _market_clear_step(state: SimState, config: SimulationConfig, old_cum_cost: 
     
     new_firms = firms._replace(
         inventory=new_inventory,
+        in_transit_inventory=new_in_transit,
         cash=new_cash,
         cumulative_revenue=new_cum_revenue,
         demand_history=new_demand_history,

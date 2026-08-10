@@ -23,7 +23,46 @@ def _production_step(state: SimState, config: SimulationConfig) -> SimState:
     raw_output = jnp.where(firms.is_active, raw_output, 0.0)
     
     effective_output = raw_output / jnp.maximum(firms.input_cost_multiplier, 0.01)
-    new_inventory = firms.inventory + effective_output
+    
+    # Phase 1.1: BOM & Leontief Production Constraints
+    def max_output_for_firm(firm_idx):
+        g = firms.good_produced[firm_idx]
+        inv = jnp.sum(firms.inventory[firm_idx], axis=-1)
+        reqs = config.bom_matrix[g]
+        max_out = jnp.where(reqs > 0, inv / reqs, jnp.inf)
+        return jnp.min(max_out)
+        
+    firm_ids = jnp.arange(firms.cash.shape[0])
+    max_possible_output = jax.vmap(max_output_for_firm)(firm_ids)
+    
+    # Output is bounded by the most scarce input SKU
+    effective_output = jnp.minimum(effective_output, max_possible_output)
+    
+    # Phase 3: Actuarial BI Claims
+    # If production drops below physical capacity due to BOM shortages or shocks
+    lost_output = jnp.maximum(0.0, capacity - effective_output)
+    # Estimate lost margin
+    margin = jnp.maximum(0.0, firms.price - (config.input_cost_base * firms.input_cost_multiplier))
+    tick_bi_claim = lost_output * margin
+    new_bi_claims = firms.bi_claims + tick_bi_claim
+
+    
+    # Consume inputs according to BOM using FIFO
+    consumed_inputs = config.bom_matrix[firms.good_produced] * effective_output[:, None]
+    
+    cumsum_inv = jnp.cumsum(firms.inventory, axis=-1)
+    remaining_inv = jnp.maximum(0.0, cumsum_inv - consumed_inputs[:, :, None])
+    zero_prepend = jnp.zeros_like(remaining_inv[:, :, :1])
+    new_inventory = jnp.diff(jnp.concatenate([zero_prepend, remaining_inv], axis=-1), axis=-1)
+    
+    # Age inventory: shift down, goods at index 0 perish
+    shifted_inventory = jnp.concatenate([
+        new_inventory[:, :, 1:],
+        jnp.zeros_like(new_inventory[:, :, :1])
+    ], axis=-1)
+    
+    # Add newly produced output to the specific SKU column at freshest index
+    shifted_inventory = shifted_inventory.at[firm_ids, firms.good_produced, -1].add(effective_output)
     
     input_cost = effective_output * config.input_cost_base * firms.input_cost_multiplier
     new_cash = firms.cash - input_cost
@@ -34,10 +73,11 @@ def _production_step(state: SimState, config: SimulationConfig) -> SimState:
     new_gov_cash = state.gov.cash + total_firm_loss
     
     new_firms = firms._replace(
-        inventory=new_inventory,
+        inventory=shifted_inventory,
         cash=new_cash,
         cumulative_cost=new_cumulative_cost,
-        production_capacity=capacity
+        production_capacity=capacity,
+        bi_claims=new_bi_claims
     )
     return state._replace(firms=new_firms, gov=state.gov._replace(cash=new_gov_cash))
 

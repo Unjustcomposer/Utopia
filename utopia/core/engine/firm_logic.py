@@ -37,6 +37,9 @@ def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState
     # Increase price if demand > production, decrease otherwise
     # The most recent value is at (macro.memory_count % 3)
     idx = macro.memory_count % 3
+    idx_prev1 = (macro.memory_count - 1) % 3
+    idx_prev2 = (macro.memory_count - 2) % 3
+    
     recent_demand = firms.demand_history[:, idx]
     recent_profit = firms.profit_history[:, idx]
     
@@ -46,8 +49,11 @@ def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState
     # Increase wages if profitable and capacity constrained, else freeze/cut
     dw_heur = jnp.where((recent_profit > 0) & (demand_ratio > 1.0), 0.01, jnp.where(recent_profit < 0, -0.01, 0.0))
     
-    # Target production based on recent demand
-    prod_heur = recent_demand * 1.1
+    # Target production based on 3-period EMA of demand (faster reaction to POS shocks)
+    ema_demand = (0.5 * firms.demand_history[:, idx] + 
+                  0.3 * firms.demand_history[:, idx_prev1] + 
+                  0.2 * firms.demand_history[:, idx_prev2])
+    prod_heur = ema_demand * 1.1
     
     # ── Selection ──
     mode = config.firm_behavior_mode
@@ -89,7 +95,21 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     """Firms enter and exit (bankruptcy)."""
     agents, firms, macro, key = state.agents, state.firms, state.macro, state.rng_key
     
-    equity = firms.cash + firms.inventory * firms.price + firms.capital_goods * config.capital_cost - firms.debt
+    # Phase 2: Warehouse Management (WMS) Constraints
+    total_inventory = jnp.sum(firms.inventory, axis=(1, 2))
+    total_transit = jnp.sum(firms.in_transit_inventory, axis=(1, 2))
+    total_volume = total_inventory + total_transit
+    
+    overflow = jnp.maximum(0.0, total_volume - config.max_inventory_capacity)
+    wms_penalty = overflow * config.input_cost_base * 0.1  # 10% base cost per tick penalty
+    
+    firms = firms._replace(
+        cash=firms.cash - wms_penalty,
+        cumulative_cost=firms.cumulative_cost + wms_penalty
+    )
+    wms_revenue = jnp.sum(wms_penalty)
+    
+    equity = firms.cash + jnp.sum(firms.inventory, axis=(1, 2)) * firms.price + firms.capital_goods * config.capital_cost - firms.debt
     
     # Differentiable bankruptcy gating
     temperature = 10.0
@@ -113,8 +133,8 @@ def _firm_lifecycle_step(state: SimState, config: SimulationConfig) -> SimState:
     total_equity_loss = macro.bank_equity - new_bank_equity
     
     # Gov absorbs all leftover cash and float mismatches to ensure PERFECT SFC balance
-    new_gov_cash = state.gov.cash + total_firm_cash_loss - total_loans_loss + total_equity_loss
-    new_inventory = firms.inventory * survival_prob
+    new_gov_cash = state.gov.cash + wms_revenue + total_firm_cash_loss - total_loans_loss + total_equity_loss
+    new_inventory = firms.inventory * survival_prob[:, None, None]
     new_employees = firms.num_employees * survival_prob
     new_capital = firms.capital_goods * survival_prob
     

@@ -12,6 +12,7 @@ import jax
 from flax import struct
 from typing import Optional, Dict
 import dataclasses
+import jax.numpy as jnp
 
 @dataclasses.dataclass
 class CalibrationProfile:
@@ -60,6 +61,18 @@ class SimulationConfig:
     productivity_per_worker: float = 12.0
     input_cost_base: float = 3.0
     target_inventory_buffer: float = 1.3  # multiplier on expected demand
+    
+    # Bill of Materials (BOM) Matrix: shape (num_goods, num_goods)
+    # bom_matrix[i, j] = amount of good j required to produce one unit of good i
+    bom_matrix: jnp.ndarray = struct.field(default_factory=lambda: jnp.zeros((4, 4), dtype=jnp.float32))
+
+    # Phase 2 Features
+    max_shelf_life: int = struct.field(pytree_node=False, default=5)
+    max_inventory_capacity: float = 1000.0
+    
+    # Tariff Matrix: shape (num_regions, num_regions)
+    # tariff_matrix[buyer_region, seller_region] = price multiplier
+    tariff_matrix: jnp.ndarray = struct.field(default_factory=lambda: jnp.ones((3, 3), dtype=jnp.float32))
 
     # ── Market Mechanics ────────────────────────────────────────────────
     price_adjustment_rate: float = 0.03
@@ -131,6 +144,10 @@ class SimulationConfig:
     # ── Parallelism ─────────────────────────────────────────────────────
     max_workers: Optional[int] = None  # None → os.cpu_count()
     
+    # ── Logistics (Phase 1.3) ───────────────────────────────────────────
+    max_transit_delay: int = struct.field(pytree_node=False, default=10)
+    base_port_capacity: float = 500.0
+
     # ── Diagnostics ─────────────────────────────────────────────────────
     sfc_tolerance: float = 1e-2  # Stock-Flow Consistency error tolerance in dollars
 

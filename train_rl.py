@@ -60,7 +60,7 @@ def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50, learning_r
     """
     print(f"Initializing LMM End-to-End Training (LR: {learning_rate}, L_inf: {lambda_inf}, L_unemp: {lambda_unemp})...")
     
-    config = SimulationConfig(num_agents=1000, num_firms=100, num_goods=10, num_ticks=num_ticks)
+    config = SimulationConfig(num_agents=1000, num_firms=100, num_ticks=num_ticks)
     
     initial_state = init_sim_state(config, seed)
     lmm_params = initial_state.lmm_params
@@ -79,7 +79,7 @@ def train_lmm(seed: int = 42, epochs: int = 100, num_ticks: int = 50, learning_r
         return macroeconomic_objective(params, state, conf, scen, lambda_inf, lambda_unemp)
         
     loss_and_grad_fn = jax.value_and_grad(objective_wrapper, has_aux=True)
-    loss_and_grad_fn_jit = jax.jit(loss_and_grad_fn, static_argnames=("conf", "scen"))
+    loss_and_grad_fn_jit = jax.jit(loss_and_grad_fn, static_argnames=("scen",))
     
     training_scenarios = ["baseline", "recession", "oil_shock", "tariff_shock"]
     validation_scenarios = ["pandemic", "supply_chain_2021"]
