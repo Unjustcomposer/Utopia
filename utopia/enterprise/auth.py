@@ -31,20 +31,17 @@ class User(BaseModel):
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
-        if DEV_MODE and AUTH0_DOMAIN == "dev":
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        else:
-            jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
-            jwks_client = PyJWKClient(jwks_url)
-            signing_key = jwks_client.get_signing_key_from_jwt(token)
-            
-            payload = jwt.decode(
-                token,
-                signing_key.key,
-                algorithms=AUTH0_ALGORITHMS,
-                audience=AUTH0_AUDIENCE,
-                issuer=f"https://{AUTH0_DOMAIN}/"
-            )
+        jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+        jwks_client = PyJWKClient(jwks_url)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        
+        payload = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=AUTH0_ALGORITHMS,
+            audience=AUTH0_AUDIENCE,
+            issuer=f"https://{AUTH0_DOMAIN}/"
+        )
 
         username = payload.get("sub")
         tenant_id = payload.get("https://utopia.com/tenant_id") or payload.get("tenant_id")
