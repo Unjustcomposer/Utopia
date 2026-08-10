@@ -29,13 +29,11 @@ from utopia.enterprise.rate_limit import limiter
 from utopia.connectors.data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-from utopia.enterprise.audit_logger import SecureAuditLogger
-
+from utopia.enterprise.audit_logger import AuditLogger
 from utopia.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
-from dashboard_ui import DASHBOARD_HTML
 
-audit_logger = SecureAuditLogger()
+audit_logger = AuditLogger()
 
 app = FastAPI(title="Utopia Engine API", description="Agent-Based Economic Simulator")
 
@@ -122,12 +120,12 @@ async def get_model_status(user: User = Depends(get_current_user)):
         with open(checkpoint_path, "rb") as f:
             file_hash = hashlib.md5(f.read()).hexdigest()
         metadata = get_checkpoint_metadata()
-        return {
+        return sanitize_for_json({
             "present": True,
             "mtime": mtime,
             "hash": file_hash,
             "metadata": metadata
-        }
+        })
     return {"present": False}
 
 @app.get("/api/scenarios")

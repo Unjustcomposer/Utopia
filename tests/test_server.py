@@ -45,7 +45,7 @@ def test_api_run():
     payload = {
         "agents": 50,
         "firms": 2,
-        "goods": 2,
+        "goods": 4,
         "ticks": 5,
         "scenario": "baseline",
         "seed": 42
@@ -60,7 +60,7 @@ def test_api_compare():
     payload = {
         "agents": 50,
         "firms": 2,
-        "goods": 2,
+        "goods": 4,
         "ticks": 5,
         "scenario": "tariffs",
         "seed": 42
@@ -75,7 +75,7 @@ def test_api_experiment():
     payload = {
         "agents": 50,
         "firms": 2,
-        "goods": 2,
+        "goods": 4,
         "ticks": 5,
         "scenario_a": "baseline",
         "scenario_b": "tariffs",

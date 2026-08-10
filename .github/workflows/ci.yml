@@ -9,6 +9,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      AUTH0_DOMAIN: dev
+      JWT_SECRET: testsecret
+      UTOPIA_DEV_MODE: "true"
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.10
