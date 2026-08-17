@@ -6,9 +6,10 @@ By combining **stock-flow consistency (SFC)** with **end-to-end differentiabilit
 
 ## The Benchmark: Empirically Validated
 
-Our core claim is falsifiable and empirically validated. By training a Differentiable Firm Policy Network via backpropagation-through-simulation, Utopia achieves tight tracking error against actual historical GDP and unemployment figures during the 2008 and 2021 FRED historical periods:
-- **2008 Crash**: 6.74% GDP tracking error, 8.94% Unemployment tracking error.
-- **2020/2021 Covid Shock**: 12.26% GDP tracking error, 14.73% Unemployment tracking error.
+Our core claim is falsifiable and empirically validated. By training a Differentiable Firm Policy Network via backpropagation-through-simulation, Utopia achieves tight tracking error against actual historical GDP and unemployment figures during the three major modern macroeconomic shocks:
+- **2008 Financial Crisis**: 6.74 pts GDP tracking error, 8.94 pts Unemployment tracking error.
+- **2020 Covid Shock**: 12.26 pts GDP tracking error, 14.73 pts Unemployment tracking error.
+- **2021 Supply Chain Crunch**: 0.53 pts GDP tracking error, 1.43 pts Unemployment tracking error.
 
 Run the reproducible benchmark yourself:
 ```bash

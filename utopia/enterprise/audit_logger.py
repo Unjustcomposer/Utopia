@@ -16,6 +16,7 @@ class AuditLogger:
     
     def __init__(self):
         self.sequence_id = 0
+        self.previous_hash = "0" * 64
         
     def log_autonomous_action(self, action_type: str, payload: Dict[str, Any], system: str) -> None:
         """
@@ -24,14 +25,22 @@ class AuditLogger:
         timestamp = time.time()
         self.sequence_id += 1
         
+        payload_str = json.dumps(payload, sort_keys=True)
+        raw_string = f"{self.previous_hash}|{timestamp}|{self.sequence_id}|{action_type}|{system}|{payload_str}"
+        current_hash = hashlib.sha256(raw_string.encode('utf-8')).hexdigest()
+        
         # Log to standard output stream and durable append-only file
         log_entry = {
             "timestamp": timestamp,
             "sequence_id": self.sequence_id,
             "action": action_type,
             "system": system,
-            "payload": payload
+            "payload": payload,
+            "previous_hash": self.previous_hash,
+            "hash": current_hash
         }
+        
+        self.previous_hash = current_hash
         logger.info(f"[AUDIT LOG] Action: {action_type} | System: {system} | Sequence: {self.sequence_id}")
         
         try:
