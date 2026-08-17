@@ -11,8 +11,8 @@ import jax.numpy as jnp
 import os
 
 # Enable persistent XLA compilation cache
-os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
-jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
+os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.utopia_jax_cache")
+jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.utopia_jax_cache"))
 
 from utopia.core.config import SimulationConfig
 from utopia.core.state import AgentState, FirmState, MacroState, SimState

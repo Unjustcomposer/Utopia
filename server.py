@@ -13,8 +13,8 @@ import asyncio
 from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File
 
 # Enable persistent XLA compilation cache
-os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.nexus_jax_cache")
-jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.nexus_jax_cache"))
+os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.utopia_jax_cache")
+jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.utopia_jax_cache"))
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field

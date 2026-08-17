@@ -122,7 +122,7 @@ def init_sim_state(config: SimulationConfig, seed: int, baseline_state_overrides
     
     inventory = jnp.zeros((config.num_firms, config.num_goods, config.max_shelf_life), dtype=jnp.float32)
     # Put initial inventory in the "freshest" slot
-    inventory = inventory.at[:, :, -1].set(10.0)
+    inventory = inventory.at[jnp.arange(config.num_firms), good_produced, -1].set(10.0)
     
     key, subkey = jax.random.split(key)
     price = jax.random.uniform(subkey, (config.num_firms,), minval=10.0, maxval=20.0)

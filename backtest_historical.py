@@ -141,7 +141,7 @@ def run_backtest(era: str):
     lmm_res = run_scenario(era, firm_behavior_mode=0)
     
     print("\n" + "="*80)
-    print(f"{'METRIC':<25} | {'ACTUAL (FRED)':<15} | {'HEURISTIC (Z-I)':<18} | {'NEXUS LMM (AI)':<15}")
+    print(f"{'METRIC':<25} | {'ACTUAL (FRED)':<15} | {'HEURISTIC (Z-I)':<18} | {'UTOPIA LMM (AI)':<15}")
     print("-" * 80)
     
     heu_gdp_err = abs(heu_res['gdp_drop_pct'] - actual_gdp_drop)

@@ -72,10 +72,14 @@ def _firm_adjustment_step(state: SimState, config: SimulationConfig) -> SimState
     new_production_capacity = target_production
     
     new_capital_goods = firms.capital_goods * (1.0 - config.capital_depreciation)
-    # Capital investment: firms with positive cash flow invest in replacement capital
+    
+    # Capital investment: calculate shortfall and dynamically invest up to 20% of cash
+    capital_shortfall = jnp.maximum(0.0, new_production_capacity - new_capital_goods)
+    target_investment_cost = capital_shortfall * config.capital_cost
+    
     investment = jnp.where(
         firms.cash > 0,
-        jnp.minimum(firms.cash * 0.1, config.capital_depreciation * firms.capital_goods * config.capital_cost),
+        jnp.minimum(firms.cash * 0.20, target_investment_cost),
         0.0
     )
     capital_added = investment / jnp.maximum(config.capital_cost, 1.0)

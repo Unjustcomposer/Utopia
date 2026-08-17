@@ -4,7 +4,7 @@ import sys
 
 def main():
     print("=======================================================")
-    print(" NEXUS AI: 5-MINUTE COMMERCIAL DEMO (PART 2 PROOF)")
+    print(" UTOPIA: 5-MINUTE COMMERCIAL DEMO (PART 2 PROOF)")
     print("=======================================================\n")
     
     print("[STEP 1/3] Proving the Speed Moat (Differentiable Engine vs Classical ABM)")
@@ -30,7 +30,7 @@ def main():
         from backtest_historical import run_backtest
         run_backtest('2008')
         
-        print("\n*** THE NEXUS AI VALUE PROPOSITION ***")
+        print("\n*** THE UTOPIA VALUE PROPOSITION ***")
         print("The heuristic policy — the kind of hand-coded rule every vendor ABM uses —")
         print("produces a ~96% tracking error against the real 2008 crash.")
         print("Our gradient-trained LMM policy, which learned by backpropagating through the")

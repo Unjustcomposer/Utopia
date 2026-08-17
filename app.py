@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import jax
-
+import numpy as np
 from utopia.core.config import SimulationConfig
 from utopia.core.simulation_jax import run_simulation
 from utopia.core.scenarios import SCENARIO_LIST
