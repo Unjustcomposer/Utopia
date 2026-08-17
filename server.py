@@ -43,12 +43,13 @@ async def extract_tenant_for_ratelimit(request: Request, call_next):
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            unverified = jwt.decode(token, options={"verify_signature": False})
-            tenant_id = unverified.get("https://utopia.com/tenant_id") or unverified.get("tenant_id")
+            from utopia.enterprise.auth import verify_jwt_token
+            verified = verify_jwt_token(token)
+            tenant_id = verified.get("https://utopia.com/tenant_id") or verified.get("tenant_id")
             if tenant_id:
                 request.state.tenant_id = tenant_id
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Rate limit auth bypass attempted: {e}")
     return await call_next(request)
 
 from prometheus_client import make_asgi_app, Counter, Histogram, CollectorRegistry

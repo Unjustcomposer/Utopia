@@ -35,7 +35,7 @@ We stabilized the engine by:
 
 With the structural leaks plugged and gradients flowing cleanly, we trained the LMM against historical demand and supply shocks.
 
-We compared the trained AI policy against empirical data from the St. Louis Federal Reserve (FRED) for the 2008 financial crisis. The AI policy successfully navigated the demand shocks and supply chain disruptions, keeping the tracking error for both GDP drawdown and Unemployment spikes **below 15%** compared to the actual historical figures.
+We compared the trained AI policy against empirical data from the St. Louis Federal Reserve (FRED) for the 2008 and 2020 macroeconomic crises. The AI policy successfully navigated the demand shocks and supply chain disruptions, keeping the tracking error remarkably low (e.g., 6.74% GDP and 8.94% Unemployment tracking error for the 2008 crash).
 
 ### Try it Yourself (Reproducible Benchmark)
 

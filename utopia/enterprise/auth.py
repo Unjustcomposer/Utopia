@@ -28,20 +28,23 @@ class User(BaseModel):
     tenant_id: str
     role: str = "analyst"
 
+def verify_jwt_token(token: str) -> dict:
+    jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+    jwks_client = PyJWKClient(jwks_url)
+    signing_key = jwks_client.get_signing_key_from_jwt(token)
+    
+    return jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=AUTH0_ALGORITHMS,
+        audience=AUTH0_AUDIENCE,
+        issuer=f"https://{AUTH0_DOMAIN}/"
+    )
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
-        jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
-        jwks_client = PyJWKClient(jwks_url)
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
-        
-        payload = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=AUTH0_ALGORITHMS,
-            audience=AUTH0_AUDIENCE,
-            issuer=f"https://{AUTH0_DOMAIN}/"
-        )
+        payload = verify_jwt_token(token)
 
         username = payload.get("sub")
         tenant_id = payload.get("https://utopia.com/tenant_id") or payload.get("tenant_id")
