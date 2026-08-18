@@ -1,5 +1,10 @@
 import uvicorn
 import logging
+import os
+
+# Mock required environment variables before importing the production app
+os.environ.setdefault("AUTH0_DOMAIN", "dev-local.auth0.com")
+
 from server import app
 from utopia.enterprise.auth import get_current_user, User
 
