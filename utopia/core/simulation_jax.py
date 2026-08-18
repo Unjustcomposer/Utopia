@@ -302,7 +302,8 @@ def _run_scan(initial_state: SimState, num_ticks: int, config: SimulationConfig,
             "inflation_tick": new_state.macro.price_index,
             "gini": gini, 
             "total_welfare": jnp.sum(new_state.agents.savings),
-            "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier)
+            "avg_cost_multiplier": jnp.mean(new_state.firms.input_cost_multiplier),
+            "active_firms": jnp.sum(new_state.firms.is_active.astype(jnp.float32))
         }
         
         return new_state, tick_metrics
@@ -349,6 +350,7 @@ class JAXSimulation:
                 "total_output": float(stacked_metrics["total_output"][i]),
                 "gini_coefficient": float(stacked_metrics["gini"][i]),
                 "total_welfare": float(stacked_metrics["total_welfare"][i]),
+                "active_firms": float(stacked_metrics["active_firms"][i]),
             })
             
         # Compute Risk Metrics: Value at Risk and Maximum Foreseeable Loss
