@@ -64,7 +64,7 @@ class SimulationConfig:
     
     # Bill of Materials (BOM) Matrix: shape (num_goods, num_goods)
     # bom_matrix[i, j] = amount of good j required to produce one unit of good i
-    bom_matrix: jnp.ndarray = struct.field(default_factory=lambda: jnp.zeros((4, 4), dtype=jnp.float32))
+    bom_matrix: jnp.ndarray = struct.field(default=None)
 
     # Phase 2 Features
     max_shelf_life: int = struct.field(pytree_node=False, default=5)
@@ -72,7 +72,13 @@ class SimulationConfig:
     
     # Tariff Matrix: shape (num_regions, num_regions)
     # tariff_matrix[buyer_region, seller_region] = price multiplier
-    tariff_matrix: jnp.ndarray = struct.field(default_factory=lambda: jnp.ones((3, 3), dtype=jnp.float32))
+    tariff_matrix: jnp.ndarray = struct.field(default=None)
+    
+    def __post_init__(self):
+        if self.bom_matrix is None or self.bom_matrix.shape != (self.num_goods, self.num_goods):
+            object.__setattr__(self, "bom_matrix", jnp.zeros((self.num_goods, self.num_goods), dtype=jnp.float32))
+        if self.tariff_matrix is None or self.tariff_matrix.shape != (self.num_regions, self.num_regions):
+            object.__setattr__(self, "tariff_matrix", jnp.ones((self.num_regions, self.num_regions), dtype=jnp.float32))
 
     # ── Market Mechanics ────────────────────────────────────────────────
     price_adjustment_rate: float = 0.03
