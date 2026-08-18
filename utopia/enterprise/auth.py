@@ -11,15 +11,10 @@ logger = logging.getLogger(__name__)
 # Auth0 Configuration
 AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
 if not AUTH0_DOMAIN:
-    raise RuntimeError("AUTH0_DOMAIN must be set. For local dev, set AUTH0_DOMAIN=dev and JWT_SECRET to a strong secret.")
+    raise RuntimeError("AUTH0_DOMAIN must be set.")
 
 AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE", "https://api.utopia.com")
 AUTH0_ALGORITHMS = ["RS256"]
-
-DEV_MODE = os.getenv("UTOPIA_DEV_MODE", "false").lower() == "true"
-JWT_SECRET = os.getenv("JWT_SECRET")
-if DEV_MODE and not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET must be set when UTOPIA_DEV_MODE=true.")
 
 security = HTTPBearer()
 

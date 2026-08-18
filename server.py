@@ -29,11 +29,9 @@ from utopia.enterprise.rate_limit import limiter
 from utopia.connectors.data_ingestion import GlobalBaselineCompiler
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
-from utopia.enterprise.audit_logger import AuditLogger
+from utopia.enterprise.audit_logger import audit_logger
 from utopia.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
-
-audit_logger = AuditLogger()
 
 app = FastAPI(title="Utopia Engine API", description="Agent-Based Economic Simulator")
 

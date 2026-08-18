@@ -17,6 +17,30 @@ class AuditLogger:
     def __init__(self):
         self.sequence_id = 0
         self.previous_hash = "0" * 64
+        self._load_last_state()
+        
+    def _load_last_state(self):
+        log_path = "data/audit_log.jsonl"
+        if not os.path.exists(log_path):
+            return
+            
+        last_line = None
+        try:
+            with open(log_path, "r") as f:
+                for line in f:
+                    if line.strip():
+                        last_line = line
+        except Exception as e:
+            logger.error(f"Failed to read durable audit log: {e}")
+            return
+            
+        if last_line:
+            try:
+                entry = json.loads(last_line)
+                self.sequence_id = entry.get("sequence_id", 0)
+                self.previous_hash = entry.get("hash", "0" * 64)
+            except json.JSONDecodeError:
+                pass
         
     def log_autonomous_action(self, action_type: str, payload: Dict[str, Any], system: str) -> None:
         """
@@ -49,3 +73,6 @@ class AuditLogger:
                 f.write(json.dumps(log_entry) + "\n")
         except Exception as e:
             logger.error(f"Failed to write to durable audit log: {e}")
+
+# Global singleton instance
+audit_logger = AuditLogger()

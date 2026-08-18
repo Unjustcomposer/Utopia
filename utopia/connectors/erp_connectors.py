@@ -20,12 +20,9 @@ import urllib.parse
 import uuid
 from utopia.core.config import CalibrationProfile
 
-from utopia.enterprise.audit_logger import AuditLogger
+from utopia.enterprise.audit_logger import audit_logger
 
 logger = logging.getLogger(__name__)
-
-# Global Audit Logger
-audit_logger = AuditLogger()
 
 class SAP_ERP_Client:
     """Production client for SAP ECC OData/BAPI."""
