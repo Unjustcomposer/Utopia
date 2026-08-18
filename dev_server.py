@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 def override_get_current_user():
     return User(username="dev_user", tenant_id="dev_tenant", role="admin")
 
-# Apply the test dependency override globally for the dev server
-app.dependency_overrides[get_current_user] = override_get_current_user
-
 if __name__ == "__main__":
+    # Apply the test dependency override globally for the dev server
+    app.dependency_overrides[get_current_user] = override_get_current_user
+
     banner = """
     ======================================================================
     [WARNING] RUNNING IN LOCAL DEVELOPMENT MODE WITH MOCKED AUTHENTICATION

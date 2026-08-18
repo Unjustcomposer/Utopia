@@ -1,0 +1,8 @@
+dev_server.py
+nexusai.db
+.DS_Store
+.git
+__pycache__
+*.pyc
+.pytest_cache
+.venv
