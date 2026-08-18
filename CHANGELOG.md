@@ -6,6 +6,7 @@ All notable changes to the Utopia project (formerly NexusAI) will be documented 
 
 ### Added
 - Created `CHANGELOG.md` to track all future codebase modifications natively within the repository.
+- **Local Dev Server**: Added `dev_server.py` as an isolated entrypoint for local development. It uses FastAPI dependency overrides to safely bypass Auth0 without polluting the production `auth.py` or `server.py` files.
 
 ### Changed
 - **Global Rebranding**: Renamed all internal and external references from `NexusAI` / `NEXUS LMM` to `Utopia` / `UTOPIA LMM`. Replaced all `~/.nexus_jax_cache` instances with `~/.utopia_jax_cache` across `engine_jax.py` and `server.py`.
