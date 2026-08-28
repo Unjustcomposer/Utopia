@@ -11,7 +11,7 @@ from train_rl import train_lmm
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Run a single pure JAX simulation and print summary."""
-    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
+    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
     print(f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
           f"{config.num_ticks} ticks, seed={args.seed}")
     
@@ -40,7 +40,7 @@ def cmd_train(args: argparse.Namespace) -> None:
 def cmd_demo(args: argparse.Namespace) -> None:
     """Run a quick visual demo of the simulator."""
     print("Running Interactive Demo Mode...")
-    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
+    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
     result = run_simulation(config=config, seed=args.seed)
     final = result.metrics_history[-1] if result.metrics_history else {}
     print(f"\n[DEMO COMPLETE] Output: {final.get('total_output', 0):.2f} | Gini: {final.get('gini', 0):.4f}")
@@ -49,7 +49,7 @@ def cmd_experiment(args: argparse.Namespace) -> None:
     """Run A/B testing between two scenarios."""
     import numpy as np
     print(f"Running A/B Test: {args.scenario_a} vs {args.scenario_b}")
-    config = SimulationConfig(num_ticks=args.ticks)
+    config = SimulationConfig(num_ticks=args.ticks)  # type: ignore[call-arg]
     
     print(f"--> Simulating Scenario A ({args.scenario_a})")
     res_a = run_simulation(config=config, seed=args.seed, scenario=args.scenario_a)
@@ -67,7 +67,7 @@ def cmd_search(args: argparse.Namespace) -> None:
     """Run seed robustness checks across multiple initializations."""
     import numpy as np
     print(f"Running Seed Robustness Check ({args.num_seeds} seeds)")
-    config = SimulationConfig(num_ticks=args.ticks)
+    config = SimulationConfig(num_ticks=args.ticks)  # type: ignore[call-arg]
     outputs = []
     
     for i in range(args.num_seeds):
@@ -88,7 +88,7 @@ def cmd_report(args: argparse.Namespace) -> None:
     from utopia.enterprise.report_generator import generate_pdf_report
     
     print(f"Running simulation for report: {args.scenario}, seed={args.seed}")
-    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)
+    config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
     result = run_simulation(config=config, seed=args.seed, scenario=args.scenario)
     
     print("Generating PDF report...")

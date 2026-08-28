@@ -1,5 +1,7 @@
 # Utopia
 
+[![CI/CD Pipeline](https://github.com/Unjustcomposer/Utopia/actions/workflows/ci.yml/badge.svg)](https://github.com/Unjustcomposer/Utopia/actions/workflows/ci.yml)
+
 **Traditional macroeconomic simulations are black boxes that take hours to run and cannot be optimized; Utopia is an end-to-end differentiable macroeconomic engine that runs 100K agents in 0.3 seconds and trains directly against historical crises.**
 
 By combining **stock-flow consistency (SFC)** with **end-to-end differentiability** via JAX, Utopia allows gradients to flow backward through the entire simulated economy—from a macroeconomic loss function through firm policies, credit markets, labor matching, and consumption.

@@ -51,7 +51,7 @@ else:
     st.sidebar.success("All clear. No immediate regional shipping risks.")
 
 mode_map = {"LMM": 0, "Zero-Intelligence": 1, "Heuristic": 2}
-config = SimulationConfig(
+config = SimulationConfig(  # type: ignore[call-arg]
     num_agents=agents,
     num_firms=firms,
     num_ticks=ticks,
