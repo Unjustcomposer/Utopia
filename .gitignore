@@ -8,6 +8,36 @@ build/
 .venv/
 *.log
 
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Database files
+*.db
+*.sqlite3
+
+# Generated outputs
+*.pdf
+results_*.jsonl
+debug_output*.txt
+backtest_results.txt
+
+# Model checkpoints & MLflow
+checkpoints/
+mlruns/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Scratch & one-off scripts
+scratch/
+fix_mypy.py
+
+# macOS
+.DS_Store
+
 # Ignore restored non-code documents
 aamas_paper.md
 draft_patent_claims.md
@@ -18,9 +48,3 @@ loi_walmart.md
 pitch_deck.md
 soc2_controls.md
 summary.txt
-utopia.db
-.DS_Store
-
-*.db
-*.sqlite3
-.DS_Store

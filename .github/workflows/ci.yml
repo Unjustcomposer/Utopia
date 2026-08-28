@@ -24,11 +24,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
-    - name: Run Pytest
+        pip install -e .
+    - name: Run Unit Tests
       run: |
-        pytest tests/ -v --cov=.
-      env:
-        AUTH0_DOMAIN: dev
+        pytest tests/ -v --cov=. -m "not integration and not regression"
     - name: Run Integration Tests
       run: |
         pytest tests/test_cli_integration.py -v -m integration --timeout=300

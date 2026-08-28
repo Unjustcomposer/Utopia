@@ -42,3 +42,12 @@ utopia = "main:main"
 [tool.setuptools]
 packages = ["utopia", "utopia.core", "utopia.connectors", "utopia.enterprise"]
 py-modules = ["main", "train_rl", "app", "server", "backtest_historical", "dashboard_ui", "us_calibration", "explanation_templates", "utopia_sdk"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: end-to-end CLI integration tests (require full engine)",
+    "regression: scientific regression tests against historical FRED data",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:starlette.*:",
+]
