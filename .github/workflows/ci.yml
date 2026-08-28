@@ -27,6 +27,7 @@ jobs:
         pip install -e .
     - name: Run Unit Tests
       run: |
+        alembic upgrade head
         pytest tests/ -v --cov=. -m "not integration and not regression"
     - name: Run Integration Tests
       run: |
