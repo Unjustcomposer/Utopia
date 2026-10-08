@@ -51,3 +51,6 @@ summary.txt
 
 # Stray artifacts
 fresh/
+data/audit_log.jsonl
+uv.lock
+*.pkl
