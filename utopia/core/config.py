@@ -47,7 +47,7 @@ class SimulationConfig:
     initial_budget_min: float = 100.0
     initial_budget_max: float = 500.0
     savings_rate_min: float = 0.05
-    savings_rate_max: float = 0.30
+    savings_rate_max: float = 0.60
     risk_aversion_min: float = 0.1
     risk_aversion_max: float = 0.9
 
@@ -100,33 +100,33 @@ class SimulationConfig:
     price_adjustment_rate: float = 0.03
     wage_adjustment_rate: float = 0.02
     demand_elasticity: float = 1.2
-    ces_elasticity: float = 0.8  # Sigma in CES demand function
+    ces_elasticity: float = 1.5  # Sigma in CES demand function
     awareness_threshold: float = 0.1  # min awareness to consider a good
     memory_window: int = 10  # ticks of price/purchase history kept
 
     # ── Labor Market (DMP) ──────────────────────────────────────────────
-    matching_efficiency: float = 0.6  # mu in M = mu * U^alpha * V^(1-alpha)
+    matching_efficiency: float = 0.9  # mu in M = mu * U^alpha * V^(1-alpha)
     matching_elasticity: float = 0.5  # alpha
-    bargaining_power_agent: float = 0.5
-    vacancy_cost: float = 5.0
+    bargaining_power_agent: float = 0.3
+    vacancy_cost: float = 2.0
 
     # ── Finance & Banking ───────────────────────────────────────────────
-    central_bank_base_rate: float = 0.02
+    central_bank_base_rate: float = 0.04
     commercial_bank_spread: float = 0.03
     reserve_requirement: float = 0.10
 
     # ── Government & Taxation ──────────────────────────────────────────
-    corporate_tax_rate: float = 0.20
-    income_tax_rate_base: float = 0.10
-    income_tax_rate_top: float = 0.35
+    corporate_tax_rate: float = 0.15
+    income_tax_rate_base: float = 0.05
+    income_tax_rate_top: float = 0.25
     income_tax_bracket_threshold: float = 100.0
-    unemployment_benefit: float = 25.0
-    minimum_wage: float = 12.0
+    unemployment_benefit: float = 15.0
+    minimum_wage: float = 8.0
 
     # ── Capital & Bankruptcy ───────────────────────────────────────────
     capital_cost: float = 50.0
     capital_depreciation: float = 0.001
-    firm_entry_probability: float = 0.05
+    firm_entry_probability: float = 0.15
     bankruptcy_threshold: float = -500.0
 
     # ── Demographics & Skills ──────────────────────────────────────────
