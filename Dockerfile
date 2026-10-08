@@ -45,11 +45,11 @@ RUN chown -R utopia:utopia /app
 USER utopia
 
 # Expose port
-EXPOSE 7860
+EXPOSE 8765
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
-    CMD curl -f http://localhost:7860/health || exit 1
+    CMD curl -f http://localhost:8765/health || exit 1
 
 # Start server
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8765"]
