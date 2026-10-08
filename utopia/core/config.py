@@ -40,28 +40,28 @@ class SimulationConfig:
     # We remove calibration_kwargs to keep the config purely hashable JAX leaves,
     # calibration parameters will be handled outside the core JAX config or passed explicitly.
 
-    # ── Population ──────────────────────────────────────────────────────
+    # ── Population (Calibrated to US Census / BLS data) ──────────────────
     num_agents: int = struct.field(pytree_node=False, default=200)
-    base_wage_min: float = 30.0
-    base_wage_max: float = 80.0
-    initial_budget_min: float = 100.0
-    initial_budget_max: float = 500.0
-    savings_rate_min: float = 0.05
-    savings_rate_max: float = 0.60
+    base_wage_min: float = 15.0   # US federal minimum ~$7.25/hr → ~$15/tick normalized
+    base_wage_max: float = 150.0  # Top decile earners ~10x minimum (BLS wage data)
+    initial_budget_min: float = 50.0    # Bottom quintile: near-zero liquid savings
+    initial_budget_max: float = 5000.0  # Top decile: ~100x bottom (Fed SCF 2022)
+    savings_rate_min: float = 0.0   # ~20% of US households have zero savings
+    savings_rate_max: float = 0.50  # Top savers: up to 50% (BEA range)
     risk_aversion_min: float = 0.1
     risk_aversion_max: float = 0.9
 
-    # ── Firms ───────────────────────────────────────────────────────────
+    # ── Firms (Calibrated to US BLS / BEA data) ─────────────────────────
     num_firms: int = struct.field(pytree_node=False, default=5)
     num_goods: int = struct.field(pytree_node=False, default=4)
     initial_firm_cash_min: float = 5_000.0
-    initial_firm_cash_max: float = 20_000.0
+    initial_firm_cash_max: float = 50_000.0  # Wider range for firm size heterogeneity
     base_price_min: float = 5.0
     base_price_max: float = 25.0
     production_capacity_min: float = 80.0
     production_capacity_max: float = 200.0
-    productivity_per_worker: float = 12.0
-    input_cost_base: float = 3.0
+    productivity_per_worker: float = 18.0  # Higher to reflect US labor productivity
+    input_cost_base: float = 4.0   # Slightly higher for realistic margins
     target_inventory_buffer: float = 1.3  # multiplier on expected demand
 
     # Bill of Materials (BOM) Matrix: shape (num_goods, num_goods)
@@ -100,39 +100,39 @@ class SimulationConfig:
     price_adjustment_rate: float = 0.03
     wage_adjustment_rate: float = 0.02
     demand_elasticity: float = 1.2
-    ces_elasticity: float = 1.5  # Sigma in CES demand function
+    ces_elasticity: float = 1.2  # Broda & Weinstein 2006 empirical estimate
     awareness_threshold: float = 0.1  # min awareness to consider a good
     memory_window: int = 10  # ticks of price/purchase history kept
 
-    # ── Labor Market (DMP) ──────────────────────────────────────────────
-    matching_efficiency: float = 0.9  # mu in M = mu * U^alpha * V^(1-alpha)
-    matching_elasticity: float = 0.5  # alpha
-    bargaining_power_agent: float = 0.3
-    vacancy_cost: float = 2.0
+    # ── Labor Market (DMP, Petrongolo & Pissarides 2001, Shimer 2005) ──
+    matching_efficiency: float = 0.7   # Empirical consensus: 0.5-0.7
+    matching_elasticity: float = 0.5   # Blanchard & Diamond 1989 estimate
+    bargaining_power_agent: float = 0.4  # Reflects declining US union power
+    vacancy_cost: float = 3.0  # Moderate cost to balance hiring rate
 
-    # ── Finance & Banking ───────────────────────────────────────────────
-    central_bank_base_rate: float = 0.04
+    # ── Finance & Banking (Fed H.15, September 2026) ──────────────────
+    central_bank_base_rate: float = 0.039  # Fed Funds midpoint 3.875% (Sep 2026 FOMC)
     commercial_bank_spread: float = 0.03
     reserve_requirement: float = 0.10
 
-    # ── Government & Taxation ──────────────────────────────────────────
-    corporate_tax_rate: float = 0.15
-    income_tax_rate_base: float = 0.05
-    income_tax_rate_top: float = 0.25
+    # ── Government & Taxation (US IRS / TCJA 2017) ─────────────────────
+    corporate_tax_rate: float = 0.21   # US statutory rate (Tax Cuts & Jobs Act)
+    income_tax_rate_base: float = 0.10  # US lowest bracket (10%)
+    income_tax_rate_top: float = 0.37   # US highest bracket (37%)
     income_tax_bracket_threshold: float = 100.0
-    unemployment_benefit: float = 15.0
-    minimum_wage: float = 8.0
+    unemployment_benefit: float = 12.0  # ~$350/week normalized to sim units
+    minimum_wage: float = 7.0   # US federal minimum $7.25/hr normalized
 
     # ── Capital & Bankruptcy ───────────────────────────────────────────
     capital_cost: float = 50.0
-    capital_depreciation: float = 0.001
-    firm_entry_probability: float = 0.15
+    capital_depreciation: float = 0.01  # ~1% per tick (BEA fixed asset depreciation)
+    firm_entry_probability: float = 0.10  # US SBA: ~10% annual firm birth rate
     bankruptcy_threshold: float = -500.0
 
     # ── Demographics & Skills ──────────────────────────────────────────
-    agent_mortality_rate: float = 0.01
-    skill_min: float = 0.5
-    skill_max: float = 2.0
+    agent_mortality_rate: float = 0.005  # ~0.5% per tick (US crude death rate ~0.8%/yr)
+    skill_min: float = 0.3   # Wider skill dispersion for realistic wage inequality
+    skill_max: float = 3.0   # Top skilled workers 10x more productive than bottom
 
     # ── Geography & Housing (Module 3) ─────────────────────────────────
     num_regions: int = struct.field(pytree_node=False, default=3)

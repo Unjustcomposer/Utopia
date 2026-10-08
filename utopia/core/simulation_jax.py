@@ -113,8 +113,20 @@ def init_sim_state(
             (config.num_agents, config.num_goods), config.base_wage_min
         )
 
-    employed = jnp.zeros(config.num_agents, dtype=jnp.float32)
-    employer_id = jnp.full(config.num_agents, -1, dtype=jnp.int32)
+    # Initialize ~96% of agents as employed (matching US labor data)
+    # This prevents the unrealistic burn-in spike from 100% unemployment
+    key, subkey = jax.random.split(key)
+    initial_employment_rate = 0.96  # US: ~3.5-4.5% unemployment
+    employed = (
+        jax.random.uniform(subkey, (config.num_agents,)) < initial_employment_rate
+    ).astype(jnp.float32)
+    # Assign employed agents to firms round-robin
+    key, subkey = jax.random.split(key)
+    employer_id = jnp.where(
+        employed > 0.0,
+        jax.random.randint(subkey, (config.num_agents,), 0, config.num_firms),
+        -1,
+    )
 
     key, subkey = jax.random.split(key)
     risk_aversion = jax.random.uniform(
@@ -155,6 +167,11 @@ def init_sim_state(
             budget = baseline_state_overrides["agent_budgets"]
         if "agent_savings_rates" in baseline_state_overrides:
             savings_rate = baseline_state_overrides["agent_savings_rates"]
+
+    # Set initial wages for employed agents (will be overridden once firms are built)
+    # For now set to midpoint of wage range; actual firm wage_offer applied after firm init
+    initial_wage_estimate = (config.base_wage_min + config.base_wage_max) / 2.0
+    wage = jnp.where(employed > 0.0, initial_wage_estimate, 0.0)
 
     agents = AgentState(
         budget=budget,
@@ -202,7 +219,12 @@ def init_sim_state(
     quality = jax.random.uniform(subkey, (config.num_firms,), minval=0.8, maxval=1.2)
 
     production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
+    # Count pre-assigned employees per firm from the initial employment setup
     num_employees = jnp.zeros(config.num_firms, dtype=jnp.float32)
+    for f_idx in range(config.num_firms):
+        num_employees = num_employees.at[f_idx].set(
+            jnp.sum((employer_id == f_idx).astype(jnp.float32))
+        )
     wage_offer = jax.random.uniform(
         subkey,
         (config.num_firms,),
@@ -293,8 +315,8 @@ def init_sim_state(
     macro = MacroState(
         deposits=jnp.array(0.0),
         loans=jnp.array(0.0),
-        base_rate=jnp.array(0.05),
-        price_index=jnp.array(10.0),
+        base_rate=jnp.array(config.central_bank_base_rate),
+        price_index=jnp.array(15.0),  # Midpoint of initial firm prices (10-20)
         memory_count=jnp.array(0),
         bank_equity=jnp.array(0.0),
         sfc_delta=jnp.array(0.0),
