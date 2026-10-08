@@ -42,11 +42,11 @@ class SimulationConfig:
 
     # ── Population (Calibrated to US Census / BLS data) ──────────────────
     num_agents: int = struct.field(pytree_node=False, default=1000)
-    base_wage_min: float = 15.0   # US federal minimum ~$7.25/hr → ~$15/tick normalized
+    base_wage_min: float = 15.0  # US federal minimum ~$7.25/hr → ~$15/tick normalized
     base_wage_max: float = 150.0  # Top decile earners ~10x minimum (BLS wage data)
-    initial_budget_min: float = 50.0    # Bottom quintile: near-zero liquid savings
+    initial_budget_min: float = 50.0  # Bottom quintile: near-zero liquid savings
     initial_budget_max: float = 5000.0  # Top decile: ~100x bottom (Fed SCF 2022)
-    savings_rate_min: float = 0.0   # ~20% of US households have zero savings
+    savings_rate_min: float = 0.0  # ~20% of US households have zero savings
     savings_rate_max: float = 0.50  # Top savers: up to 50% (BEA range)
     risk_aversion_min: float = 0.1
     risk_aversion_max: float = 0.9
@@ -61,7 +61,7 @@ class SimulationConfig:
     production_capacity_min: float = 80.0
     production_capacity_max: float = 200.0
     productivity_per_worker: float = 18.0  # Higher to reflect US labor productivity
-    input_cost_base: float = 4.0   # Slightly higher for realistic margins
+    input_cost_base: float = 4.0  # Slightly higher for realistic margins
     target_inventory_buffer: float = 1.3  # multiplier on expected demand
 
     # Bill of Materials (BOM) Matrix: shape (num_goods, num_goods)
@@ -105,8 +105,8 @@ class SimulationConfig:
     memory_window: int = 10  # ticks of price/purchase history kept
 
     # ── Labor Market (DMP, Petrongolo & Pissarides 2001, Shimer 2005) ──
-    matching_efficiency: float = 0.7   # Empirical consensus: 0.5-0.7
-    matching_elasticity: float = 0.5   # Blanchard & Diamond 1989 estimate
+    matching_efficiency: float = 0.7  # Empirical consensus: 0.5-0.7
+    matching_elasticity: float = 0.5  # Blanchard & Diamond 1989 estimate
     bargaining_power_agent: float = 0.4  # Reflects declining US union power
     vacancy_cost: float = 3.0  # Moderate cost to balance hiring rate
 
@@ -116,12 +116,12 @@ class SimulationConfig:
     reserve_requirement: float = 0.10
 
     # ── Government & Taxation (US IRS / TCJA 2017) ─────────────────────
-    corporate_tax_rate: float = 0.21   # US statutory rate (Tax Cuts & Jobs Act)
+    corporate_tax_rate: float = 0.21  # US statutory rate (Tax Cuts & Jobs Act)
     income_tax_rate_base: float = 0.10  # US lowest bracket (10%)
-    income_tax_rate_top: float = 0.37   # US highest bracket (37%)
+    income_tax_rate_top: float = 0.37  # US highest bracket (37%)
     income_tax_bracket_threshold: float = 100.0
     unemployment_benefit: float = 12.0  # ~$350/week normalized to sim units
-    minimum_wage: float = 7.0   # US federal minimum $7.25/hr normalized
+    minimum_wage: float = 7.0  # US federal minimum $7.25/hr normalized
 
     # ── Capital & Bankruptcy ───────────────────────────────────────────
     capital_cost: float = 50.0
@@ -131,8 +131,8 @@ class SimulationConfig:
 
     # ── Demographics & Skills ──────────────────────────────────────────
     agent_mortality_rate: float = 0.005  # ~0.5% per tick (US crude death rate ~0.8%/yr)
-    skill_min: float = 0.3   # Wider skill dispersion for realistic wage inequality
-    skill_max: float = 3.0   # Top skilled workers 10x more productive than bottom
+    skill_min: float = 0.3  # Wider skill dispersion for realistic wage inequality
+    skill_max: float = 3.0  # Top skilled workers 10x more productive than bottom
 
     # ── Geography & Housing (Module 3) ─────────────────────────────────
     num_regions: int = struct.field(pytree_node=False, default=3)

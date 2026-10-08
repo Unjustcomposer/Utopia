@@ -220,9 +220,10 @@ def init_sim_state(
 
     production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
     # Count pre-assigned employees per firm (vectorized for GPU performance at 100K agents)
-    one_hot_employers = jax.nn.one_hot(
-        jnp.where(employer_id >= 0, employer_id, 0), config.num_firms
-    ) * employed[:, None]
+    one_hot_employers = (
+        jax.nn.one_hot(jnp.where(employer_id >= 0, employer_id, 0), config.num_firms)
+        * employed[:, None]
+    )
     num_employees = jnp.sum(one_hot_employers, axis=0)
     wage_offer = jax.random.uniform(
         subkey,

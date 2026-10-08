@@ -86,7 +86,9 @@ def fetch_fred_series(
         timeout=30,
     )
     if not resp.ok:
-        print(f"  ⚠ Failed to fetch {series_id} (HTTP {resp.status_code}), using fallback")
+        print(
+            f"  ⚠ Failed to fetch {series_id} (HTTP {resp.status_code}), using fallback"
+        )
         return []
 
     rows = []
@@ -114,9 +116,11 @@ def series_to_monthly(data: List[Tuple[str, float]]) -> Dict[str, float]:
 # Crisis Event Definitions
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CrisisEvent:
     """Defines a historical crisis for backtesting."""
+
     name: str
     short_name: str
     description: str
@@ -258,6 +262,7 @@ EVENTS = {
 # Simulation Runner
 # ---------------------------------------------------------------------------
 
+
 def build_shock_matrix(event: CrisisEvent, config) -> "jnp.ndarray":
     """Build a JAX shock matrix from a CrisisEvent's phase definitions."""
     import jax.numpy as jnp
@@ -317,11 +322,11 @@ def run_backtest(
         firm_behavior_mode=2,  # Heuristic for reproducibility
     )
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  BACKTESTING: {event.name}")
     print(f"  {event.description}")
     print(f"  Agents: {num_agents:,} | Firms: {num_firms} | Ticks: {total_ticks}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     # Build custom shock matrix
     shock_matrix = build_shock_matrix(event, config)
@@ -370,6 +375,7 @@ def run_backtest(
 # FRED Ground Truth Comparison
 # ---------------------------------------------------------------------------
 
+
 def fetch_ground_truth(event: CrisisEvent) -> Dict[str, List[Tuple[str, float]]]:
     """Fetch FRED ground truth data for the event's comparison period."""
     truth = {}
@@ -387,6 +393,7 @@ def fetch_ground_truth(event: CrisisEvent) -> Dict[str, List[Tuple[str, float]]]
 # ---------------------------------------------------------------------------
 # Validation Scoring
 # ---------------------------------------------------------------------------
+
 
 def validate_directions(
     sim_metrics: Dict,
@@ -406,7 +413,9 @@ def validate_directions(
         else:
             continue
 
-        pre_crisis = np.mean(values[max(0, warmup - 5) : warmup]) if warmup > 0 else values[0]
+        pre_crisis = (
+            np.mean(values[max(0, warmup - 5) : warmup]) if warmup > 0 else values[0]
+        )
         crisis_values = values[warmup:]
 
         if len(crisis_values) == 0:
@@ -415,8 +424,14 @@ def validate_directions(
 
         peak = max(crisis_values)
         trough = min(crisis_values)
-        end_val = np.mean(crisis_values[-5:]) if len(crisis_values) >= 5 else crisis_values[-1]
-        mid_val = np.mean(crisis_values[len(crisis_values) // 3 : 2 * len(crisis_values) // 3])
+        end_val = (
+            np.mean(crisis_values[-5:])
+            if len(crisis_values) >= 5
+            else crisis_values[-1]
+        )
+        mid_val = np.mean(
+            crisis_values[len(crisis_values) // 3 : 2 * len(crisis_values) // 3]
+        )
 
         passed = False
         detail = ""
@@ -456,6 +471,7 @@ def validate_directions(
 # Chart Generation
 # ---------------------------------------------------------------------------
 
+
 def generate_charts(
     all_results: Dict[str, Dict],
     all_truth: Dict[str, Dict],
@@ -480,14 +496,22 @@ def generate_charts(
         # 1. Unemployment Rate
         ax = axes[0, 0]
         crisis_unemp = sim["unemployment"][warmup:]
-        ax.plot(range(len(crisis_unemp)), [u * 100 for u in crisis_unemp],
-                "r-", linewidth=2, label="Utopia Predicted")
+        ax.plot(
+            range(len(crisis_unemp)),
+            [u * 100 for u in crisis_unemp],
+            "r-",
+            linewidth=2,
+            label="Utopia Predicted",
+        )
         if "UNRATE" in truth:
             fred_data = truth["UNRATE"]
             ax.plot(
                 np.linspace(0, len(crisis_unemp), len(fred_data)),
                 [v for _, v in fred_data],
-                "b--", linewidth=2, alpha=0.7, label="FRED Actual",
+                "b--",
+                linewidth=2,
+                alpha=0.7,
+                label="FRED Actual",
             )
         ax.set_title("Unemployment Rate (%)", fontweight="bold")
         ax.set_xlabel("Simulation Tick")
@@ -509,7 +533,10 @@ def generate_charts(
             ax.plot(
                 np.linspace(0, len(pi_pct), len(cpi_pct)),
                 cpi_pct,
-                "b--", linewidth=2, alpha=0.7, label="FRED Actual CPI",
+                "b--",
+                linewidth=2,
+                alpha=0.7,
+                label="FRED Actual CPI",
             )
         ax.set_title("Cumulative Price Change (%)", fontweight="bold")
         ax.set_xlabel("Simulation Tick")
@@ -522,8 +549,16 @@ def generate_charts(
         crisis_gdp = sim["gdp"][warmup:]
         base_gdp = crisis_gdp[0] if crisis_gdp[0] > 0 else 1.0
         gdp_indexed = [g / base_gdp * 100 for g in crisis_gdp]
-        ax.plot(range(len(gdp_indexed)), gdp_indexed, "g-", linewidth=2, label="Utopia GDP Index")
-        ax.axhline(y=100, color="gray", linestyle="--", alpha=0.5, label="Pre-crisis Baseline")
+        ax.plot(
+            range(len(gdp_indexed)),
+            gdp_indexed,
+            "g-",
+            linewidth=2,
+            label="Utopia GDP Index",
+        )
+        ax.axhline(
+            y=100, color="gray", linestyle="--", alpha=0.5, label="Pre-crisis Baseline"
+        )
         ax.set_title("GDP Index (Pre-crisis = 100)", fontweight="bold")
         ax.set_xlabel("Simulation Tick")
         ax.set_ylabel("Index")
@@ -533,8 +568,20 @@ def generate_charts(
         # 4. Gini Coefficient
         ax = axes[1, 1]
         crisis_gini = sim["gini"][warmup:]
-        ax.plot(range(len(crisis_gini)), crisis_gini, "purple", linewidth=2, label="Gini Coefficient")
-        ax.axhline(y=0.39, color="orange", linestyle="--", alpha=0.7, label="US Average (~0.39)")
+        ax.plot(
+            range(len(crisis_gini)),
+            crisis_gini,
+            "purple",
+            linewidth=2,
+            label="Gini Coefficient",
+        )
+        ax.axhline(
+            y=0.39,
+            color="orange",
+            linestyle="--",
+            alpha=0.7,
+            label="US Average (~0.39)",
+        )
         ax.set_title("Wealth Inequality (Gini)", fontweight="bold")
         ax.set_xlabel("Simulation Tick")
         ax.set_ylabel("Gini")
@@ -551,6 +598,7 @@ def generate_charts(
 # ---------------------------------------------------------------------------
 # Report Generator
 # ---------------------------------------------------------------------------
+
 
 def print_validation_report(
     all_results: Dict[str, Dict],
@@ -583,13 +631,15 @@ def print_validation_report(
 
     accuracy = (total_passed / total_tests * 100) if total_tests > 0 else 0
 
-    print(f"\n  ╔{'═'*50}╗")
-    print(f"  ║  OVERALL DIRECTIONAL ACCURACY: {accuracy:.0f}%  ({total_passed}/{total_tests})")
+    print(f"\n  ╔{'═' * 50}╗")
+    print(
+        f"  ║  OVERALL DIRECTIONAL ACCURACY: {accuracy:.0f}%  ({total_passed}/{total_tests})"
+    )
     if accuracy >= 80:
         print(f"  ║  STATUS: ✓ VALIDATION PASSED")
     else:
         print(f"  ║  STATUS: ⚠ NEEDS CALIBRATION REFINEMENT")
-    print(f"  ╚{'═'*50}╝")
+    print(f"  ╚{'═' * 50}╝")
 
     return {"accuracy": accuracy, "passed": total_passed, "total": total_tests}
 
@@ -597,6 +647,7 @@ def print_validation_report(
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -619,9 +670,7 @@ def main():
     )
     args = parser.parse_args()
 
-    events_to_run = (
-        list(EVENTS.keys()) if args.event == "all" else [args.event]
-    )
+    events_to_run = list(EVENTS.keys()) if args.event == "all" else [args.event]
 
     all_results = {}
     all_truth = {}
