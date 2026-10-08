@@ -1,41 +1,121 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: utopia
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: utopia-config
+  namespace: utopia
+data:
+  UTOPIA_DEV_MODE: "false"
+  JAX_PLATFORMS: "cuda,cpu"
+  XLA_PYTHON_CLIENT_MEM_FRACTION: "0.8"
+  CORS_ORIGINS: "https://utopia-engine.com"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: utopia-secrets
+  namespace: utopia
+type: Opaque
+stringData:
+  DATABASE_URL: "placeholder"
+  JWT_SECRET: "placeholder"
+  AUTH0_DOMAIN: "placeholder"
+  AUTH0_AUDIENCE: "placeholder"
+  FRED_API_KEY: "placeholder"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: utopia-server
+  namespace: utopia
   labels:
-    app: utopia
+    app: utopia-server
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: utopia
+      app: utopia-server
   template:
     metadata:
       labels:
-        app: utopia
+        app: utopia-server
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
-      - name: utopia-server
-        image: utopia-server:latest
-        ports:
-        - containerPort: 8000
-        resources:
-          requests:
-            cpu: "1"
-            memory: "2Gi"
-          limits:
-            cpu: "2"
-            memory: "4Gi"
+        - name: utopia-server
+          image: ghcr.io/utopia-engine/utopia-server:latest
+          ports:
+            - containerPort: 8765
+          envFrom:
+            - configMapRef:
+                name: utopia-config
+            - secretRef:
+                name: utopia-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8765
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8765
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+              nvidia.com/gpu: 1
+            limits:
+              cpu: 2
+              memory: 4Gi
+              nvidia.com/gpu: 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: utopia-service
+  namespace: utopia
 spec:
+  type: ClusterIP
   selector:
-    app: utopia
+    app: utopia-server
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8000
-  type: LoadBalancer
+    - port: 80
+      targetPort: 8765
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: utopia-ingress
+  namespace: utopia
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - utopia-engine.com
+      secretName: utopia-tls
+  rules:
+    - host: utopia-engine.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: utopia-service
+                port:
+                  number: 80

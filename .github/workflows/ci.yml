@@ -1,39 +1,119 @@
-name: Utopia CI
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff check
+        run: ruff check .
+      - name: Run ruff format check
+        run: ruff format --check .
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build frontend
+        run: npm run build
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [lint]
     env:
       AUTH0_DOMAIN: dev
       JWT_SECRET: testsecret
-      UTOPIA_DEV_MODE: "true"
+      UTOPIA_DEV_MODE: true
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r requirements-dev.txt
-        pip install -e .
-    - name: Run Unit Tests
-      run: |
-        alembic upgrade head
-        pytest tests/ -v --cov=. -m "not integration and not regression"
-    - name: Run Integration Tests
-      run: |
-        pytest tests/test_cli_integration.py -v -m integration --timeout=300
-    - name: Run Scientific Regression Tests
-      run: |
-        pytest tests/test_regression.py -v -m regression
-      env:
-        FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install -e .
+      - name: Run migrations
+        run: alembic upgrade head
+      - name: Run unit tests
+        run: pytest tests/ -v --cov=. -m "not integration and not regression"
+      - name: Run integration tests
+        run: pytest tests/test_cli_integration.py -v -m integration --timeout=300
+      - name: Run regression tests
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: pytest tests/test_regression.py -v -m regression
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [test, frontend-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+      - name: Deploy to Staging Placeholder
+        run: |
+          echo "Staging deployment placeholder - configure kubectl/helm here"
+          # To deploy to staging, wire up kubectl or ArgoCD here.
+          # For kubectl, configure kubeconfig using a GitHub Secret and run 'kubectl apply'.
+          # For GitOps/ArgoCD, commit the new image tag to the deployment repository.

@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File
 os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.utopia_jax_cache")
 jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.utopia_jax_cache"))
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, Tuple, List
@@ -34,6 +35,12 @@ from utopia.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
 
 app = FastAPI(title="Utopia Engine API", description="Agent-Based Economic Simulator")
+
+# Health check endpoint for Docker HEALTHCHECK and Kubernetes probes
+@app.get("/health")
+async def health_check():
+    """Lightweight health check for infrastructure monitoring."""
+    return {"status": "healthy", "service": "utopia-engine"}
 
 @app.middleware("http")
 async def extract_tenant_for_ratelimit(request: Request, call_next):
@@ -78,7 +85,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-from fastapi.staticfiles import StaticFiles
 import glob
 from utopia.core.scenarios import SCENARIO_LIST
 
