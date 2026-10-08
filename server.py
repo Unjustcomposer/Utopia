@@ -30,7 +30,6 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 
-from dashboard_ui import DASHBOARD_HTML
 from utopia.connectors.data_ingestion import GlobalBaselineCompiler
 from utopia.core.config import SimulationConfig
 from utopia.enterprise.audit_logger import audit_logger
@@ -626,7 +625,7 @@ else:
 
     @app.get("/", response_class=HTMLResponse)
     async def get_dashboard():
-        return DASHBOARD_HTML
+        return "<h1>Frontend not found</h1><p>Please build the React frontend by running <code>npm run build</code> in the <code>frontend/</code> directory.</p>"
 
 
 if __name__ == "__main__":
