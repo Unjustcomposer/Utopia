@@ -1,9 +1,10 @@
-import os
-import jwt
-from fastapi import HTTPException, Security, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
 import logging
+import os
+
+import jwt
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ _DEV_MODE = (not AUTH0_DOMAIN) or AUTH0_DOMAIN == "dev"
 
 if not _DEV_MODE:
     from jwt import PyJWKClient
+
     AUTH0_AUDIENCE = os.getenv("AUTH0_AUDIENCE", "https://api.utopia.com")
     AUTH0_ALGORITHMS = ["RS256"]
 else:
@@ -27,10 +29,12 @@ else:
 
 security = HTTPBearer(auto_error=not _DEV_MODE)
 
+
 class User(BaseModel):
     username: str
     tenant_id: str
     role: str = "analyst"
+
 
 def verify_jwt_token(token: str) -> dict:
     if _DEV_MODE:
@@ -52,6 +56,7 @@ def verify_jwt_token(token: str) -> dict:
             issuer=f"https://{AUTH0_DOMAIN}/",
         )
 
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(security),
 ):
@@ -64,14 +69,10 @@ def get_current_user(
         payload = verify_jwt_token(token)
 
         username = payload.get("sub", "dev_user")
-        tenant_id = (
-            payload.get("https://utopia.com/tenant_id")
-            or payload.get("tenant_id", "dev_tenant")
+        tenant_id = payload.get("https://utopia.com/tenant_id") or payload.get(
+            "tenant_id", "dev_tenant"
         )
-        role = (
-            payload.get("https://utopia.com/role")
-            or payload.get("role", "analyst")
-        )
+        role = payload.get("https://utopia.com/role") or payload.get("role", "analyst")
 
         if not username or not tenant_id:
             raise HTTPException(
@@ -86,9 +87,8 @@ def get_current_user(
             status_code=401, detail="Invalid authentication credentials"
         )
 
+
 def get_admin_user(user: User = Depends(get_current_user)):
     if user.role != "admin":
-        raise HTTPException(
-            status_code=403, detail="Forbidden: Admin access required"
-        )
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
     return user

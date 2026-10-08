@@ -4,43 +4,49 @@ API Server for Utopia Simulator
 Enterprise-grade asynchronous API server using FastAPI.
 Replaces the monolithic blocking http.server architecture.
 """
-import math
-import uvicorn
-import uuid
-import os
-import jax
+
 import asyncio
-from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File
+import math
+import os
+
+import jax
+import uvicorn
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 
 # Enable persistent XLA compilation cache
 os.environ["JAX_COMPILATION_CACHE_DIR"] = os.path.expanduser("~/.utopia_jax_cache")
-jax.config.update("jax_compilation_cache_dir", os.path.expanduser("~/.utopia_jax_cache"))
+jax.config.update(
+    "jax_compilation_cache_dir", os.path.expanduser("~/.utopia_jax_cache")
+)
+from typing import List, Optional
+
+import pandas as pd
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, Tuple, List
-import pandas as pd
 from loguru import logger
+from pydantic import BaseModel, Field
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 
-from utopia.enterprise.auth import get_current_user, User, get_admin_user
-from utopia.enterprise.database import get_db, SimulationResult
-from utopia.enterprise.rate_limit import limiter
-from utopia.connectors.data_ingestion import GlobalBaselineCompiler
-from slowapi.errors import RateLimitExceeded
-from slowapi import _rate_limit_exceeded_handler
-from utopia.enterprise.audit_logger import audit_logger
-from utopia.core.config import SimulationConfig
 from dashboard_ui import DASHBOARD_HTML
+from utopia.connectors.data_ingestion import GlobalBaselineCompiler
+from utopia.core.config import SimulationConfig
+from utopia.enterprise.audit_logger import audit_logger
+from utopia.enterprise.auth import User, get_admin_user, get_current_user
+from utopia.enterprise.database import SimulationResult, get_db
+from utopia.enterprise.rate_limit import limiter
 
 app = FastAPI(title="Utopia Engine API", description="Agent-Based Economic Simulator")
+
 
 # Health check endpoint for Docker HEALTHCHECK and Kubernetes probes
 @app.get("/health")
 async def health_check():
     """Lightweight health check for infrastructure monitoring."""
     return {"status": "healthy", "service": "utopia-engine"}
+
 
 @app.middleware("http")
 async def extract_tenant_for_ratelimit(request: Request, call_next):
@@ -49,25 +55,52 @@ async def extract_tenant_for_ratelimit(request: Request, call_next):
         token = auth_header.split(" ")[1]
         try:
             from utopia.enterprise.auth import verify_jwt_token
+
             verified = verify_jwt_token(token)
-            tenant_id = verified.get("https://utopia.com/tenant_id") or verified.get("tenant_id")
+            tenant_id = verified.get("https://utopia.com/tenant_id") or verified.get(
+                "tenant_id"
+            )
             if tenant_id:
                 request.state.tenant_id = tenant_id
         except Exception as e:
             logger.warning(f"Rate limit auth bypass attempted: {e}")
     return await call_next(request)
 
-from prometheus_client import make_asgi_app, Counter, Histogram, CollectorRegistry
+
+from prometheus_client import CollectorRegistry, Counter, Histogram, make_asgi_app
 
 _metrics_registry = CollectorRegistry()
 
 try:
-    SIMULATION_COUNTER = Counter("utopia_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
-    SIMULATION_DURATION = Histogram("utopia_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+    SIMULATION_COUNTER = Counter(
+        "utopia_simulations_total",
+        "Total number of simulations run",
+        ["type"],
+        registry=_metrics_registry,
+    )
+    SIMULATION_DURATION = Histogram(
+        "utopia_simulation_duration_seconds",
+        "Duration of simulations",
+        registry=_metrics_registry,
+    )
 except ValueError:
     from prometheus_client import REGISTRY
-    SIMULATION_COUNTER = REGISTRY._names_to_collectors.get("utopia_simulations_total") or Counter("utopia_simulations_total", "Total number of simulations run", ["type"], registry=_metrics_registry)
-    SIMULATION_DURATION = REGISTRY._names_to_collectors.get("utopia_simulation_duration_seconds") or Histogram("utopia_simulation_duration_seconds", "Duration of simulations", registry=_metrics_registry)
+
+    SIMULATION_COUNTER = REGISTRY._names_to_collectors.get(
+        "utopia_simulations_total"
+    ) or Counter(
+        "utopia_simulations_total",
+        "Total number of simulations run",
+        ["type"],
+        registry=_metrics_registry,
+    )
+    SIMULATION_DURATION = REGISTRY._names_to_collectors.get(
+        "utopia_simulation_duration_seconds"
+    ) or Histogram(
+        "utopia_simulation_duration_seconds",
+        "Duration of simulations",
+        registry=_metrics_registry,
+    )
 
 app.mount("/metrics", make_asgi_app(registry=_metrics_registry))
 
@@ -86,7 +119,9 @@ app.add_middleware(
 )
 
 import glob
+
 from utopia.core.scenarios import SCENARIO_LIST
+
 
 # Endpoints for Frontend Phase 2.1
 @app.get("/api/calibration_profiles")
@@ -94,12 +129,14 @@ async def get_calibration_profiles(user: User = Depends(get_current_user)):
     files = glob.glob("data/calibration_profiles/*.json")
     return [os.path.basename(f) for f in files]
 
+
 @app.get("/api/erp/status")
 async def get_erp_status(user: User = Depends(get_current_user)):
-    from utopia.connectors.erp_connectors import SAP_ERP_Client, Oracle_NetSuite_Client
+    from utopia.connectors.erp_connectors import Oracle_NetSuite_Client, SAP_ERP_Client
+
     sap = SAP_ERP_Client()
     oracle = Oracle_NetSuite_Client()
-    
+
     # Actively attempt connection to trigger fallback detection
     try:
         sap._authenticate()
@@ -109,45 +146,79 @@ async def get_erp_status(user: User = Depends(get_current_user)):
         oracle.get_sales_orders()
     except Exception:
         pass
-        
+
     return {
-        "SAP_ECC": {"mode": "mock" if sap.is_mock_mode else "live", "connected": sap.is_mock_mode is not True},
-        "Oracle_NetSuite": {"mode": "mock" if oracle.is_mock_mode else "live", "connected": oracle.is_mock_mode is not True}
+        "SAP_ECC": {
+            "mode": "mock" if sap.is_mock_mode else "live",
+            "connected": sap.is_mock_mode is not True,
+        },
+        "Oracle_NetSuite": {
+            "mode": "mock" if oracle.is_mock_mode else "live",
+            "connected": oracle.is_mock_mode is not True,
+        },
     }
+
 
 @app.get("/api/model/status")
 async def get_model_status(user: User = Depends(get_current_user)):
     from utopia.core.checkpoint import get_checkpoint_metadata
+
     checkpoint_path = "checkpoints/lmm_latest.pkl"
     if os.path.exists(checkpoint_path):
         import hashlib
+
         mtime = os.path.getmtime(checkpoint_path)
         with open(checkpoint_path, "rb") as f:
             file_hash = hashlib.md5(f.read()).hexdigest()
         metadata = get_checkpoint_metadata()
-        return sanitize_for_json({
-            "present": True,
-            "mtime": mtime,
-            "hash": file_hash,
-            "metadata": metadata
-        })
+        return sanitize_for_json(
+            {"present": True, "mtime": mtime, "hash": file_hash, "metadata": metadata}
+        )
     return {"present": False}
+
 
 @app.get("/api/scenarios")
 async def get_scenarios(user: User = Depends(get_current_user)):
     return SCENARIO_LIST
 
+
 @app.get("/api/runs")
-async def get_runs(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    runs = db.query(SimulationResult).filter(SimulationResult.tenant_id == user.tenant_id).order_by(SimulationResult.created_at.desc()).limit(50).all()
-    return [{"id": r.id, "run_type": r.run_type, "parameters": r.parameters, "created_at": r.created_at} for r in runs]
+async def get_runs(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
+    runs = (
+        db.query(SimulationResult)
+        .filter(SimulationResult.tenant_id == user.tenant_id)
+        .order_by(SimulationResult.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "run_type": r.run_type,
+            "parameters": r.parameters,
+            "created_at": r.created_at,
+        }
+        for r in runs
+    ]
+
 
 @app.get("/api/runs/{run_id}")
-async def get_run_by_id(run_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    run = db.query(SimulationResult).filter(SimulationResult.id == run_id, SimulationResult.tenant_id == user.tenant_id).first()
+async def get_run_by_id(
+    run_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
+    run = (
+        db.query(SimulationResult)
+        .filter(
+            SimulationResult.id == run_id, SimulationResult.tenant_id == user.tenant_id
+        )
+        .first()
+    )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
+
 
 class CompareRequest(BaseModel):
     agents: int = 200
@@ -159,13 +230,14 @@ class CompareRequest(BaseModel):
     scenario: str = "recession"
     firm_behavior_mode: int = Field(default=2, ge=0, le=2)
 
+
 @app.post("/api/run/compare")
 @limiter.limit("5/minute")
 async def handle_api_compare(
     request: Request,
     req: CompareRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     try:
         config = SimulationConfig(
@@ -174,40 +246,50 @@ async def handle_api_compare(
             num_goods=req.goods,
             num_ticks=req.ticks,
             use_us_calibration=req.use_us_calibration,
-            firm_behavior_mode=req.firm_behavior_mode
+            firm_behavior_mode=req.firm_behavior_mode,
         )
-        baseline_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, "baseline")
-        scenario_task = asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
-        
-        baseline_result, scenario_result = await asyncio.gather(baseline_task, scenario_task)
-        
+        baseline_task = asyncio.to_thread(
+            _ray_run_simulation, config, req.seed, "baseline"
+        )
+        scenario_task = asyncio.to_thread(
+            _ray_run_simulation, config, req.seed, req.scenario
+        )
+
+        baseline_result, scenario_result = await asyncio.gather(
+            baseline_task, scenario_task
+        )
+
         response = {
             "baseline": {
                 "metrics_history": baseline_result.metrics_history,
-                "summary": baseline_result.summary()
+                "summary": baseline_result.summary(),
             },
             "scenario": {
                 "metrics_history": scenario_result.metrics_history,
-                "summary": scenario_result.summary()
-            }
+                "summary": scenario_result.summary(),
+            },
         }
-        
+
         db_result = SimulationResult(
             tenant_id=user.tenant_id,
             run_type="compare",
             parameters=req.model_dump(),
-            results=sanitize_for_json(response)
+            results=sanitize_for_json(response),
         )
         db.add(db_result)
         db.commit()
-        
-        audit_logger.log_autonomous_action("run_simulation_compare", {
-            "tenant_id": user.tenant_id,
-            "username": user.username,
-            "scenario": req.scenario,
-            "run_type": "compare"
-        }, "Utopia")
-        
+
+        audit_logger.log_autonomous_action(
+            "run_simulation_compare",
+            {
+                "tenant_id": user.tenant_id,
+                "username": user.username,
+                "scenario": req.scenario,
+                "run_type": "compare",
+            },
+            "Utopia",
+        )
+
         return sanitize_for_json(response)
     except Exception as e:
         logger.exception("Error in handle_api_compare")
@@ -227,6 +309,7 @@ def sanitize_for_json(obj):
         return sanitize_for_json(obj.item())
     return obj
 
+
 class RunRequest(BaseModel):
     agents: int = Field(default=200, gt=0, le=10000)
     firms: int = Field(default=5, gt=0, le=1000)
@@ -237,10 +320,13 @@ class RunRequest(BaseModel):
     scenario: str = "baseline"
     firm_behavior_mode: int = Field(default=0, ge=0, le=2)
 
+
 def _ray_run_simulation(config, seed, scenario="baseline"):
     from utopia.core.simulation_jax import run_simulation
+
     # We use the new JAX engine directly
     return run_simulation(config=config, seed=seed, scenario=scenario)
+
 
 @app.post("/api/run")
 @limiter.limit("10/minute")
@@ -248,7 +334,7 @@ async def handle_api_run(
     request: Request,
     req: RunRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     try:
         logger.info(f"User {user.username} (tenant: {user.tenant_id}) starting run")
@@ -258,39 +344,46 @@ async def handle_api_run(
             num_goods=req.goods,
             num_ticks=req.ticks,
             use_us_calibration=req.use_us_calibration,
-            firm_behavior_mode=req.firm_behavior_mode
+            firm_behavior_mode=req.firm_behavior_mode,
         )
-        
+
         with SIMULATION_DURATION.time():
-            result = await asyncio.to_thread(_ray_run_simulation, config, req.seed, req.scenario)
-            
+            result = await asyncio.to_thread(
+                _ray_run_simulation, config, req.seed, req.scenario
+            )
+
         SIMULATION_COUNTER.labels(type="run").inc()
-        
+
         response = {
             "metrics_history": result.metrics_history,
-            "summary": result.summary()
+            "summary": result.summary(),
         }
-        
+
         db_result = SimulationResult(
             tenant_id=user.tenant_id,
             run_type="run",
             parameters=req.model_dump(),
-            results=sanitize_for_json(response)
+            results=sanitize_for_json(response),
         )
         db.add(db_result)
         db.commit()
-        
-        audit_logger.log_autonomous_action("run_simulation", {
-            "tenant_id": user.tenant_id,
-            "username": user.username,
-            "scenario": req.scenario,
-            "run_type": "run"
-        }, "Utopia")
-        
+
+        audit_logger.log_autonomous_action(
+            "run_simulation",
+            {
+                "tenant_id": user.tenant_id,
+                "username": user.username,
+                "scenario": req.scenario,
+                "run_type": "run",
+            },
+            "Utopia",
+        )
+
         return sanitize_for_json(response)
     except Exception as e:
         logger.exception("Error in handle_api_run")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 class ExperimentRequest(BaseModel):
     agents: int = 200
@@ -303,90 +396,115 @@ class ExperimentRequest(BaseModel):
     scenario_b: str = "tariffs"
     firm_behavior_mode: int = Field(default=2, ge=0, le=2)
 
+
 @app.post("/api/experiment")
 @limiter.limit("5/minute")
 async def handle_api_experiment(
-    request: Request,
-    req: ExperimentRequest,
-    user: User = Depends(get_current_user)
+    request: Request, req: ExperimentRequest, user: User = Depends(get_current_user)
 ):
     try:
         import numpy as np
+
         config = SimulationConfig(
             num_agents=req.agents,
             num_firms=req.firms,
             num_goods=req.goods,
             num_ticks=req.ticks,
-            firm_behavior_mode=req.firm_behavior_mode
+            firm_behavior_mode=req.firm_behavior_mode,
         )
-        
+
         async def run_scenario(scenario_name):
             outputs = []
             for i in range(req.num_seeds):
-                res = await asyncio.to_thread(_ray_run_simulation, config, req.seed + i, scenario_name)
+                res = await asyncio.to_thread(
+                    _ray_run_simulation, config, req.seed + i, scenario_name
+                )
                 if res.metrics_history:
-                    outputs.append(res.metrics_history[-1].get('total_output', 0))
+                    outputs.append(res.metrics_history[-1].get("total_output", 0))
             return np.mean(outputs) if outputs else 0, np.std(outputs) if outputs else 0
-            
+
         mean_a, std_a = await run_scenario(req.scenario_a)
         mean_b, std_b = await run_scenario(req.scenario_b)
-        
+
         diff = mean_b - mean_a
         pct = (diff / mean_a * 100) if mean_a else 0
-        
-        audit_logger.log_autonomous_action("run_experiment", {
-            "tenant_id": user.tenant_id,
-            "username": user.username,
-            "scenario_a": req.scenario_a,
-            "scenario_b": req.scenario_b
-        }, "Utopia")
-        
-        return sanitize_for_json({
-            "scenario_a": {"mean_output": mean_a, "std_output": std_a},
-            "scenario_b": {"mean_output": mean_b, "std_output": std_b},
-            "deltas": {"absolute": diff, "percentage": pct}
-        })
+
+        audit_logger.log_autonomous_action(
+            "run_experiment",
+            {
+                "tenant_id": user.tenant_id,
+                "username": user.username,
+                "scenario_a": req.scenario_a,
+                "scenario_b": req.scenario_b,
+            },
+            "Utopia",
+        )
+
+        return sanitize_for_json(
+            {
+                "scenario_a": {"mean_output": mean_a, "std_output": std_a},
+                "scenario_b": {"mean_output": mean_b, "std_output": std_b},
+                "deltas": {"absolute": diff, "percentage": pct},
+            }
+        )
     except Exception as e:
         logger.exception("Error in handle_api_experiment")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/agents/ingest")
 @limiter.limit("10/minute")
 async def ingest_agents_csv(
     request: Request,
     file: UploadFile = File(...),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     try:
-        logger.info(f"User {user.username} (tenant: {user.tenant_id}) ingesting CSV: {file.filename}")
-        if not file.filename.lower().endswith('.csv'):
-            raise HTTPException(status_code=400, detail="Invalid file type. Must be a CSV.")
-            
+        logger.info(
+            f"User {user.username} (tenant: {user.tenant_id}) ingesting CSV: {file.filename}"
+        )
+        if not file.filename.lower().endswith(".csv"):
+            raise HTTPException(
+                status_code=400, detail="Invalid file type. Must be a CSV."
+            )
+
         # [FIX] DOS vulnerability: Limit upload size to 5MB and parse from stream
         MAX_SIZE = 5 * 1024 * 1024
         contents = await file.read()
         if len(contents) > MAX_SIZE:
-            raise HTTPException(status_code=413, detail="File too large. Maximum size is 5MB.")
-            
-        if b'\x00' in contents:
-            raise HTTPException(status_code=400, detail="Invalid file content: null bytes detected.")
-            
+            raise HTTPException(
+                status_code=413, detail="File too large. Maximum size is 5MB."
+            )
+
+        if b"\x00" in contents:
+            raise HTTPException(
+                status_code=400, detail="Invalid file content: null bytes detected."
+            )
+
         import io
+
         df = await asyncio.to_thread(pd.read_csv, io.BytesIO(contents))
-        
+
         records = df.to_dict(orient="records")
         logger.info(f"Successfully ingested {len(records)} agent records")
-        
-        return {"status": "success", "message": f"Ingested {len(records)} records.", "records": records[:5]}
+
+        return {
+            "status": "success",
+            "message": f"Ingested {len(records)} records.",
+            "records": records[:5],
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error in ingest_agents_csv")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/ingest_global_baseline")
 @limiter.limit("2/minute")
-async def ingest_global_baseline(request: Request, user: User = Depends(get_admin_user)):
+async def ingest_global_baseline(
+    request: Request, user: User = Depends(get_admin_user)
+):
     """
     Triggers the alternative data ingestion pipeline (Credit Cards, Satellite, Shipping)
     to compile a real-world snapshot into JAX tensors and run the simulation from that baseline.
@@ -396,28 +514,42 @@ async def ingest_global_baseline(request: Request, user: User = Depends(get_admi
         config = SimulationConfig()
         compiler = GlobalBaselineCompiler(config)
         overrides, is_fallback = await asyncio.to_thread(compiler.compile_baseline)
-        
-        logger.info("Baseline compiled successfully. Initiating JAX Simulation with overrides.")
+
+        logger.info(
+            "Baseline compiled successfully. Initiating JAX Simulation with overrides."
+        )
         from utopia.core.simulation_jax import run_simulation
-        result = await asyncio.to_thread(run_simulation, config=config, seed=42, scenario="baseline", baseline_state_overrides=overrides)
-        
+
+        result = await asyncio.to_thread(
+            run_simulation,
+            config=config,
+            seed=42,
+            scenario="baseline",
+            baseline_state_overrides=overrides,
+        )
+
         # Optionally save to DB here...
-        
-        audit_logger.log_autonomous_action("ingest_global_baseline", {
-            "tenant_id": user.tenant_id,
-            "username": user.username,
-            "action": "ingest_baseline"
-        }, "Utopia")
-        
+
+        audit_logger.log_autonomous_action(
+            "ingest_global_baseline",
+            {
+                "tenant_id": user.tenant_id,
+                "username": user.username,
+                "action": "ingest_baseline",
+            },
+            "Utopia",
+        )
+
         return {
-            "status": "success", 
+            "status": "success",
             "message": "Global baseline compiled and simulated.",
             "is_fallback": is_fallback,
-            "metrics": result.summary()
+            "metrics": result.summary(),
         }
     except Exception as e:
         logger.exception("Error in global baseline ingestion")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 class ExplainRequest(BaseModel):
     demand_history: List[float] = [10.0, 11.0, 10.5]
@@ -426,42 +558,57 @@ class ExplainRequest(BaseModel):
     macro_price_history: List[float] = [10.0, 10.1, 10.2]
     macro_rate_history: List[float] = [0.05, 0.05, 0.05]
 
+
 @app.post("/api/explain")
 @limiter.limit("10/minute")
 async def handle_api_explain(
     request: Request,
     req: ExplainRequest,
     format: Optional[str] = "executive",
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user),
 ):
     try:
-        from utopia.core.lmm_explain import explain_firm_policy, generate_executive_explanation
-        from utopia.core.lmm_model import get_initial_lmm_params
         import jax
         import jax.numpy as jnp
-        
+
+        from utopia.core.lmm_explain import (
+            explain_firm_policy,
+            generate_executive_explanation,
+        )
+        from utopia.core.lmm_model import get_initial_lmm_params
+
         warning = None
         from utopia.core.checkpoint import load_lmm_checkpoint
+
         current_lmm_params = load_lmm_checkpoint()
         if current_lmm_params is not None:
             params = current_lmm_params
         else:
             warning = "Using untrained model weights. Run 'python main.py train' to train the LMM first."
-            params = await asyncio.to_thread(get_initial_lmm_params, jax.random.PRNGKey(42))
-        
-        lmm_inputs = jnp.stack([
-            jnp.array(req.demand_history),
-            jnp.array(req.profit_history),
-            jnp.array(req.price_history),
-            jnp.array(req.macro_price_history),
-            jnp.array(req.macro_rate_history)
-        ], axis=-1)
-        
+            params = await asyncio.to_thread(
+                get_initial_lmm_params, jax.random.PRNGKey(42)
+            )
+
+        lmm_inputs = jnp.stack(
+            [
+                jnp.array(req.demand_history),
+                jnp.array(req.profit_history),
+                jnp.array(req.price_history),
+                jnp.array(req.macro_price_history),
+                jnp.array(req.macro_rate_history),
+            ],
+            axis=-1,
+        )
+
         if format == "raw":
-            explanations = await asyncio.to_thread(explain_firm_policy, params, lmm_inputs)
+            explanations = await asyncio.to_thread(
+                explain_firm_policy, params, lmm_inputs
+            )
         else:
-            explanations = await asyncio.to_thread(generate_executive_explanation, params, lmm_inputs, "supply_chain")
-            
+            explanations = await asyncio.to_thread(
+                generate_executive_explanation, params, lmm_inputs, "supply_chain"
+            )
+
         response = sanitize_for_json(explanations)
         if warning:
             response["warning"] = warning
@@ -470,17 +617,21 @@ async def handle_api_explain(
         logger.exception("Error in handle_api_explain")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Serve the frontend at root
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 if os.path.exists(frontend_dist):
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 else:
+
     @app.get("/", response_class=HTMLResponse)
     async def get_dashboard():
         return DASHBOARD_HTML
 
+
 if __name__ == "__main__":
     import sys
+
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     print("==========================================================")
     print(f"  Utopia FastAPI Server running at http://localhost:{port}")

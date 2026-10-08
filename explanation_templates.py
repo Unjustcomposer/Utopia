@@ -1,15 +1,45 @@
 FEATURE_NAMES = {
-    0: {"name": "Recent Demand Trend", "description": "How customer demand has been changing over the last 3 periods"},
-    1: {"name": "Profit Trajectory", "description": "Whether the firm's profitability is rising or falling"},
-    2: {"name": "Price Level", "description": "The firm's current pricing relative to cost"},
-    3: {"name": "Market Price Index", "description": "Overall price level in the economy (inflation signal)"},
-    4: {"name": "Interest Rate Environment", "description": "Central bank rate affecting borrowing and investment costs"},
+    0: {
+        "name": "Recent Demand Trend",
+        "description": "How customer demand has been changing over the last 3 periods",
+    },
+    1: {
+        "name": "Profit Trajectory",
+        "description": "Whether the firm's profitability is rising or falling",
+    },
+    2: {
+        "name": "Price Level",
+        "description": "The firm's current pricing relative to cost",
+    },
+    3: {
+        "name": "Market Price Index",
+        "description": "Overall price level in the economy (inflation signal)",
+    },
+    4: {
+        "name": "Interest Rate Environment",
+        "description": "Central bank rate affecting borrowing and investment costs",
+    },
 }
 
 OUTPUT_NAMES = {
-    0: {"name": "Price Adjustment", "unit": "%", "positive": "increase price", "negative": "decrease price"},
-    1: {"name": "Wage Adjustment", "unit": "%", "positive": "raise wages", "negative": "cut wages"},
-    2: {"name": "Production Target", "unit": "units", "positive": "increase production", "negative": "reduce production"},
+    0: {
+        "name": "Price Adjustment",
+        "unit": "%",
+        "positive": "increase price",
+        "negative": "decrease price",
+    },
+    1: {
+        "name": "Wage Adjustment",
+        "unit": "%",
+        "positive": "raise wages",
+        "negative": "cut wages",
+    },
+    2: {
+        "name": "Production Target",
+        "unit": "units",
+        "positive": "increase production",
+        "negative": "reduce production",
+    },
 }
 
 SUPPLY_CHAIN_TEMPLATES = {

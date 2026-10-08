@@ -1,4 +1,5 @@
 """Shared test configuration and fixtures."""
+
 import os
 
 # Set environment variables BEFORE any application imports

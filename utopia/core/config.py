@@ -8,11 +8,12 @@ internal dynamics — never predictions about real companies, markets, or events
 
 from __future__ import annotations
 
-import jax
-from flax import struct
-from typing import Optional, Dict
 import dataclasses
+from typing import Dict, Optional
+
 import jax.numpy as jnp
+from flax import struct
+
 
 @dataclasses.dataclass
 class CalibrationProfile:
@@ -24,6 +25,7 @@ class CalibrationProfile:
     macro: Dict[str, float] = dataclasses.field(default_factory=dict)
     erp_inventory_divisor: float = 1000.0
     erp_demand_divisor: float = 100.0
+
 
 @struct.dataclass
 class SimulationConfig:
@@ -61,7 +63,7 @@ class SimulationConfig:
     productivity_per_worker: float = 12.0
     input_cost_base: float = 3.0
     target_inventory_buffer: float = 1.3  # multiplier on expected demand
-    
+
     # Bill of Materials (BOM) Matrix: shape (num_goods, num_goods)
     # bom_matrix[i, j] = amount of good j required to produce one unit of good i
     bom_matrix: jnp.ndarray = struct.field(default=None)
@@ -69,16 +71,30 @@ class SimulationConfig:
     # Phase 2 Features
     max_shelf_life: int = struct.field(pytree_node=False, default=5)
     max_inventory_capacity: float = 1000.0
-    
+
     # Tariff Matrix: shape (num_regions, num_regions)
     # tariff_matrix[buyer_region, seller_region] = price multiplier
     tariff_matrix: jnp.ndarray = struct.field(default=None)
-    
+
     def __post_init__(self):
-        if self.bom_matrix is None or self.bom_matrix.shape != (self.num_goods, self.num_goods):
-            object.__setattr__(self, "bom_matrix", jnp.zeros((self.num_goods, self.num_goods), dtype=jnp.float32))
-        if self.tariff_matrix is None or self.tariff_matrix.shape != (self.num_regions, self.num_regions):
-            object.__setattr__(self, "tariff_matrix", jnp.ones((self.num_regions, self.num_regions), dtype=jnp.float32))
+        if self.bom_matrix is None or self.bom_matrix.shape != (
+            self.num_goods,
+            self.num_goods,
+        ):
+            object.__setattr__(
+                self,
+                "bom_matrix",
+                jnp.zeros((self.num_goods, self.num_goods), dtype=jnp.float32),
+            )
+        if self.tariff_matrix is None or self.tariff_matrix.shape != (
+            self.num_regions,
+            self.num_regions,
+        ):
+            object.__setattr__(
+                self,
+                "tariff_matrix",
+                jnp.ones((self.num_regions, self.num_regions), dtype=jnp.float32),
+            )
 
     # ── Market Mechanics ────────────────────────────────────────────────
     price_adjustment_rate: float = 0.03
@@ -98,7 +114,7 @@ class SimulationConfig:
     central_bank_base_rate: float = 0.02
     commercial_bank_spread: float = 0.03
     reserve_requirement: float = 0.10
-    
+
     # ── Government & Taxation ──────────────────────────────────────────
     corporate_tax_rate: float = 0.20
     income_tax_rate_base: float = 0.10
@@ -106,31 +122,31 @@ class SimulationConfig:
     income_tax_bracket_threshold: float = 100.0
     unemployment_benefit: float = 25.0
     minimum_wage: float = 12.0
-    
+
     # ── Capital & Bankruptcy ───────────────────────────────────────────
     capital_cost: float = 50.0
     capital_depreciation: float = 0.001
     firm_entry_probability: float = 0.05
     bankruptcy_threshold: float = -500.0
-    
+
     # ── Demographics & Skills ──────────────────────────────────────────
     agent_mortality_rate: float = 0.01
     skill_min: float = 0.5
     skill_max: float = 2.0
-    
+
     # ── Geography & Housing (Module 3) ─────────────────────────────────
     num_regions: int = struct.field(pytree_node=False, default=3)
     housing_depreciation: float = 0.02
     housing_base_price: float = 200.0
-    
+
     # ── Foreign Trade (Module 3) ───────────────────────────────────────
     foreign_demand_base: float = 50.0
     exchange_rate_volatility: float = 0.05
-    
+
     # ── Menu Costs & Expectations (Module 3) ───────────────────────────
     menu_cost: float = 2.0
     expectation_alpha: float = 0.3
-    
+
     # ── Insurance & Network (Module 3) ─────────────────────────────────
     insurance_premium: float = 5.0
     insurance_payout: float = 50.0
@@ -140,7 +156,9 @@ class SimulationConfig:
     num_ticks: int = struct.field(pytree_node=False, default=120)
 
     # ── Baselines ───────────────────────────────────────────────────────
-    firm_behavior_mode: int = struct.field(pytree_node=False, default=0) # 0: LMM, 1: ZI, 2: Heuristic
+    firm_behavior_mode: int = struct.field(
+        pytree_node=False, default=0
+    )  # 0: LMM, 1: ZI, 2: Heuristic
 
     # ── Experiment Defaults ─────────────────────────────────────────────
     default_num_seeds: int = 30
@@ -149,7 +167,7 @@ class SimulationConfig:
 
     # ── Parallelism ─────────────────────────────────────────────────────
     max_workers: Optional[int] = None  # None → os.cpu_count()
-    
+
     # ── Logistics (Phase 1.3) ───────────────────────────────────────────
     max_transit_delay: int = struct.field(pytree_node=False, default=10)
     base_port_capacity: float = 500.0
@@ -157,17 +175,19 @@ class SimulationConfig:
     # ── Diagnostics ─────────────────────────────────────────────────────
     sfc_tolerance: float = 1e-2  # Stock-Flow Consistency error tolerance in dollars
 
-    def copy(self, **overrides) -> "SimulationConfig":
+    def copy(self, **overrides) -> SimulationConfig:
         """Return a shallow copy with selected fields overridden."""
         return self.replace(**overrides)
 
     @classmethod
-    def from_profile(cls, profile: "CalibrationProfile") -> "SimulationConfig":
+    def from_profile(cls, profile: CalibrationProfile) -> SimulationConfig:
         """Initialize a SimulationConfig derived from a CalibrationProfile."""
         return cls(
             use_us_calibration=True,
             input_cost_base=profile.cost_structure.get("input_cost_base", 3.0),
-            savings_rate_min=max(0.0, profile.macro.get("personal_savings_rate", 0.05) - 0.05),
+            savings_rate_min=max(
+                0.0, profile.macro.get("personal_savings_rate", 0.05) - 0.05
+            ),
             savings_rate_max=profile.macro.get("personal_savings_rate", 0.3) + 0.05,
             central_bank_base_rate=profile.macro.get("federal_funds_rate", 0.02),
             base_wage_min=profile.labor.get("avg_weekly_wage", 620.0) / 20.0,

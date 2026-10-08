@@ -5,18 +5,22 @@ CLI entry point for running pure JAX simulations and LMM training.
 """
 
 import argparse
+
+from train_rl import train_lmm
 from utopia.core.config import SimulationConfig
 from utopia.core.simulation_jax import run_simulation
-from train_rl import train_lmm
+
 
 def cmd_run(args: argparse.Namespace) -> None:
     """Run a single pure JAX simulation and print summary."""
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
-    print(f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
-          f"{config.num_ticks} ticks, seed={args.seed}")
-    
+    print(
+        f"Running simulation: {config.num_agents} agents, {config.num_firms} firms, "
+        f"{config.num_ticks} ticks, seed={args.seed}"
+    )
+
     result = run_simulation(config=config, seed=args.seed)
-    
+
     print("\n=== SIMULATION METRICS (simulated) ===")
     if result.metrics_history:
         final_metrics = result.metrics_history[-1]
@@ -27,15 +31,22 @@ def cmd_run(args: argparse.Namespace) -> None:
                 print(f"  {k}: {v}")
     print("=" * 40)
 
+
 def cmd_train(args: argparse.Namespace) -> None:
     """Train the Large Macroeconomic Model (LMM)."""
-    if hasattr(args, 'scenario') and args.scenario in ["2008", "2020", "2021"]:
-        print(f"Running Seed-Stage Validation for Scenario: {args.scenario} (Seed: {args.seed})")
+    if hasattr(args, "scenario") and args.scenario in ["2008", "2020", "2021"]:
+        print(
+            f"Running Seed-Stage Validation for Scenario: {args.scenario} (Seed: {args.seed})"
+        )
         from backtest_historical import run_backtest
+
         run_backtest(args.scenario)
     else:
-        print(f"Training LMM for {args.epochs} epochs, with {args.ticks} ticks per episode, seed={args.seed}")
+        print(
+            f"Training LMM for {args.epochs} epochs, with {args.ticks} ticks per episode, seed={args.seed}"
+        )
         train_lmm(seed=args.seed, epochs=args.epochs, num_ticks=args.ticks)
+
 
 def cmd_demo(args: argparse.Namespace) -> None:
     """Run a quick visual demo of the simulator."""
@@ -43,67 +54,81 @@ def cmd_demo(args: argparse.Namespace) -> None:
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
     result = run_simulation(config=config, seed=args.seed)
     final = result.metrics_history[-1] if result.metrics_history else {}
-    print(f"\n[DEMO COMPLETE] Output: {final.get('total_output', 0):.2f} | Gini: {final.get('gini', 0):.4f}")
+    print(
+        f"\n[DEMO COMPLETE] Output: {final.get('total_output', 0):.2f} | Gini: {final.get('gini', 0):.4f}"
+    )
+
 
 def cmd_experiment(args: argparse.Namespace) -> None:
     """Run A/B testing between two scenarios."""
-    import numpy as np
     print(f"Running A/B Test: {args.scenario_a} vs {args.scenario_b}")
     config = SimulationConfig(num_ticks=args.ticks)  # type: ignore[call-arg]
-    
+
     print(f"--> Simulating Scenario A ({args.scenario_a})")
     res_a = run_simulation(config=config, seed=args.seed, scenario=args.scenario_a)
-    out_a = res_a.metrics_history[-1].get('total_output', 0) if res_a.metrics_history else 0
-    
+    out_a = (
+        res_a.metrics_history[-1].get("total_output", 0) if res_a.metrics_history else 0
+    )
+
     print(f"--> Simulating Scenario B ({args.scenario_b})")
     res_b = run_simulation(config=config, seed=args.seed, scenario=args.scenario_b)
-    out_b = res_b.metrics_history[-1].get('total_output', 0) if res_b.metrics_history else 0
-    
+    out_b = (
+        res_b.metrics_history[-1].get("total_output", 0) if res_b.metrics_history else 0
+    )
+
     diff = out_b - out_a
     pct = (diff / out_a * 100) if out_a else 0
     print(f"\n[A/B TEST RESULT] Output diff: {diff:+.2f} ({pct:+.2f}%)")
 
+
 def cmd_search(args: argparse.Namespace) -> None:
     """Run seed robustness checks across multiple initializations."""
     import numpy as np
+
     print(f"Running Seed Robustness Check ({args.num_seeds} seeds)")
     config = SimulationConfig(num_ticks=args.ticks)  # type: ignore[call-arg]
     outputs = []
-    
+
     for i in range(args.num_seeds):
         seed = args.seed + i
         res = run_simulation(config=config, seed=seed)
         if res.metrics_history:
-            outputs.append(res.metrics_history[-1].get('total_output', 0))
-            
+            outputs.append(res.metrics_history[-1].get("total_output", 0))
+
     if outputs:
         mean_out = np.mean(outputs)
         std_out = np.std(outputs)
-        print(f"\n[ROBUSTNESS] Mean Output: {mean_out:.2f} ± {std_out:.2f} (across {args.num_seeds} seeds)")
+        print(
+            f"\n[ROBUSTNESS] Mean Output: {mean_out:.2f} ± {std_out:.2f} (across {args.num_seeds} seeds)"
+        )
     else:
         print("\n[ROBUSTNESS] No output generated.")
+
 
 def cmd_report(args: argparse.Namespace) -> None:
     """Generate an executive PDF report for a simulation scenario."""
     from utopia.enterprise.report_generator import generate_pdf_report
-    
+
     print(f"Running simulation for report: {args.scenario}, seed={args.seed}")
     config = SimulationConfig(num_ticks=args.ticks, num_agents=args.agents)  # type: ignore[call-arg]
     result = run_simulation(config=config, seed=args.seed, scenario=args.scenario)
-    
+
     print("Generating PDF report...")
     pdf_bytes = generate_pdf_report(result)
-    
+
     out_filename = f"report_{args.scenario}_{args.seed}.pdf"
-    with open(out_filename, 'wb') as f:
+    with open(out_filename, "wb") as f:
         f.write(pdf_bytes)
-        
+
     print(f"Report successfully generated and saved to: {out_filename}")
+
 
 def cmd_backtest(args: argparse.Namespace) -> None:
     """Run the 2008 Financial Crisis backtest commercial demo."""
     from backtest_historical import run_backtest
+
     run_backtest("2008")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -135,7 +160,9 @@ def main():
     p_demo.set_defaults(func=cmd_demo)
 
     # ── experiment ─────────────────────────────────────────────────────
-    p_exp = subparsers.add_parser("experiment", help="Run A/B testing between scenarios")
+    p_exp = subparsers.add_parser(
+        "experiment", help="Run A/B testing between scenarios"
+    )
     p_exp.add_argument("--scenario-a", type=str, default="baseline")
     p_exp.add_argument("--scenario-b", type=str, default="tariffs")
     p_exp.add_argument("--seed", type=int, default=42)
@@ -158,7 +185,9 @@ def main():
     p_report.set_defaults(func=cmd_report)
 
     # ── backtest ───────────────────────────────────────────────────────
-    p_backtest = subparsers.add_parser("backtest", help="Run the 2008 historical validation demo")
+    p_backtest = subparsers.add_parser(
+        "backtest", help="Run the 2008 historical validation demo"
+    )
     p_backtest.set_defaults(func=cmd_backtest)
 
     args = parser.parse_args()
@@ -167,6 +196,7 @@ def main():
         return
 
     args.func(args)
+
 
 if __name__ == "__main__":
     main()

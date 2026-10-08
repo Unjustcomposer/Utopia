@@ -1,29 +1,31 @@
 import jax
 import jax.numpy as jnp
+
 from utopia.core.config import SimulationConfig
 from utopia.core.state import SimState
+
 
 def _production_step(state: SimState, config: SimulationConfig) -> SimState:
     """Firms produce goods."""
     agents, firms = state.agents, state.firms
-    
+
     def total_firm_skill(firm_id):
         return jnp.sum(jnp.where(agents.employer_id == firm_id, agents.skill, 0.0))
-        
+
     firm_ids = jnp.arange(firms.cash.shape[0])
     effective_labor = jax.vmap(total_firm_skill)(firm_ids)
-    
+
     labor_output = effective_labor * config.productivity_per_worker
-    
+
     # Capital determines physical capacity limit
     capacity = firms.capital_goods * 10.0
     raw_output = jnp.minimum(capacity, labor_output)
-    
+
     # Only active firms produce
     raw_output = jnp.where(firms.is_active, raw_output, 0.0)
-    
+
     effective_output = raw_output / jnp.maximum(firms.input_cost_multiplier, 0.01)
-    
+
     # Phase 1.1: BOM & Leontief Production Constraints
     def max_output_for_firm(firm_idx):
         g = firms.good_produced[firm_idx]
@@ -31,53 +33,57 @@ def _production_step(state: SimState, config: SimulationConfig) -> SimState:
         reqs = config.bom_matrix[g]
         max_out = jnp.where(reqs > 0, inv / reqs, jnp.inf)
         return jnp.min(max_out)
-        
+
     firm_ids = jnp.arange(firms.cash.shape[0])
     max_possible_output = jax.vmap(max_output_for_firm)(firm_ids)
-    
+
     # Output is bounded by the most scarce input SKU
     effective_output = jnp.minimum(effective_output, max_possible_output)
-    
+
     # Phase 3: Actuarial BI Claims
     # If production drops below physical capacity due to BOM shortages or shocks
     lost_output = jnp.maximum(0.0, capacity - effective_output)
     # Estimate lost margin
-    margin = jnp.maximum(0.0, firms.price - (config.input_cost_base * firms.input_cost_multiplier))
+    margin = jnp.maximum(
+        0.0, firms.price - (config.input_cost_base * firms.input_cost_multiplier)
+    )
     tick_bi_claim = lost_output * margin
     new_bi_claims = firms.bi_claims + tick_bi_claim
 
-    
     # Consume inputs according to BOM using FIFO
     consumed_inputs = config.bom_matrix[firms.good_produced] * effective_output[:, None]
-    
+
     cumsum_inv = jnp.cumsum(firms.inventory, axis=-1)
     remaining_inv = jnp.maximum(0.0, cumsum_inv - consumed_inputs[:, :, None])
     zero_prepend = jnp.zeros_like(remaining_inv[:, :, :1])
-    new_inventory = jnp.diff(jnp.concatenate([zero_prepend, remaining_inv], axis=-1), axis=-1)
-    
+    new_inventory = jnp.diff(
+        jnp.concatenate([zero_prepend, remaining_inv], axis=-1), axis=-1
+    )
+
     # Age inventory: shift down, goods at index 0 perish
-    shifted_inventory = jnp.concatenate([
-        new_inventory[:, :, 1:],
-        jnp.zeros_like(new_inventory[:, :, :1])
-    ], axis=-1)
-    
+    shifted_inventory = jnp.concatenate(
+        [new_inventory[:, :, 1:], jnp.zeros_like(new_inventory[:, :, :1])], axis=-1
+    )
+
     # Add newly produced output to the specific SKU column at freshest index
-    shifted_inventory = shifted_inventory.at[firm_ids, firms.good_produced, -1].add(effective_output)
-    
+    shifted_inventory = shifted_inventory.at[firm_ids, firms.good_produced, -1].add(
+        effective_output
+    )
+
     input_cost = effective_output * config.input_cost_base * firms.input_cost_multiplier
     new_cash = firms.cash - input_cost
     new_cumulative_cost = firms.cumulative_cost + input_cost
-    
+
     # Catch float leak and route to gov
     total_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
     new_gov_cash = state.gov.cash + total_firm_loss
-    
+
     new_firms = firms._replace(
         inventory=shifted_inventory,
         cash=new_cash,
         cumulative_cost=new_cumulative_cost,
         production_capacity=capacity,
-        bi_claims=new_bi_claims
+        bi_claims=new_bi_claims,
     )
     return state._replace(firms=new_firms, gov=state.gov._replace(cash=new_gov_cash))
 
@@ -85,49 +91,52 @@ def _production_step(state: SimState, config: SimulationConfig) -> SimState:
 def _wage_payment_step(state: SimState, config: SimulationConfig) -> SimState:
     """Firms pay wages to their employees."""
     agents, firms = state.agents, state.firms
-    
+
     # Instead of iterating over firms, we vectorized agent wage receipt
     # Since agent employer_id maps to firm indices, we can gather wage_offer
     # But wait, agents already have `agent.wage` assigned during hiring!
     # So we just add agent.wage to their budget.
     earned_wages = agents.employed * agents.is_alive.astype(jnp.float32) * agents.wage
-    
+
     # Progressive Taxation
-    tax = jnp.where(earned_wages > config.income_tax_bracket_threshold,
-                    (earned_wages - config.income_tax_bracket_threshold) * config.income_tax_rate_top + config.income_tax_bracket_threshold * config.income_tax_rate_base,
-                    earned_wages * config.income_tax_rate_base)
+    tax = jnp.where(
+        earned_wages > config.income_tax_bracket_threshold,
+        (earned_wages - config.income_tax_bracket_threshold)
+        * config.income_tax_rate_top
+        + config.income_tax_bracket_threshold * config.income_tax_rate_base,
+        earned_wages * config.income_tax_rate_base,
+    )
     tax = tax * agents.employed * agents.is_alive.astype(jnp.float32)
-    
+
     net_wages = earned_wages - tax
     new_budget = agents.budget + net_wages
-    
+
     # Track taxes
     tick_tax_revenue = jnp.sum(tax)
-    
+
     # Subtract from firm cash
     # We need to sum wages per firm.
     def sum_wages(firm_id):
         return jnp.sum(jnp.where(agents.employer_id == firm_id, earned_wages, 0.0))
-        
+
     firm_ids = jnp.arange(firms.cash.shape[0])
     total_wages_per_firm = jax.vmap(sum_wages)(firm_ids)
-    
+
     new_cash = firms.cash - total_wages_per_firm
     new_cumulative_cost = firms.cumulative_cost + total_wages_per_firm
-    
+
     # Catch float leak based on EXACT delta in tracking variables!
     actual_agent_gain = jnp.sum(new_budget) - jnp.sum(agents.budget)
     actual_firm_loss = jnp.sum(firms.cash) - jnp.sum(new_cash)
     # Gov cash goes up by tick_tax_revenue + float_leak
     # We want: actual_agent_gain - actual_firm_loss + tick_tax_revenue + float_leak = 0
     float_leak = actual_firm_loss - actual_agent_gain - tick_tax_revenue
-    
+
     new_agents = agents._replace(budget=new_budget)
     new_firms = firms._replace(cash=new_cash, cumulative_cost=new_cumulative_cost)
     new_gov = state.gov._replace(
-        tax_revenue=state.gov.tax_revenue + tick_tax_revenue, 
-        cash=state.gov.cash + tick_tax_revenue + float_leak
+        tax_revenue=state.gov.tax_revenue + tick_tax_revenue,
+        cash=state.gov.cash + tick_tax_revenue + float_leak,
     )
-    
-    return state._replace(agents=new_agents, firms=new_firms, gov=new_gov)
 
+    return state._replace(agents=new_agents, firms=new_firms, gov=new_gov)

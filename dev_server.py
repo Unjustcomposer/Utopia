@@ -1,12 +1,13 @@
-import uvicorn
 import logging
 import os
+
+import uvicorn
 
 # Mock required environment variables before importing the production app
 os.environ.setdefault("AUTH0_DOMAIN", "dev-local.auth0.com")
 
 from server import app
-from utopia.enterprise.auth import get_current_user, User
+from utopia.enterprise.auth import User, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,10 @@ logger = logging.getLogger(__name__)
 # NEVER run this in production or expose this server to the internet.
 # -----------------------------------------------------------------------------
 
+
 def override_get_current_user():
     return User(username="dev_user", tenant_id="dev_tenant", role="admin")
+
 
 if __name__ == "__main__":
     # Apply the test dependency override globally for the dev server
@@ -36,6 +39,6 @@ if __name__ == "__main__":
     """
     print(banner)
     logger.warning(banner)
-    
+
     # Run the server on port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
