@@ -31,14 +31,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '20'
+          bun-version: latest
       - name: Install dependencies
-        run: npm install
+        run: bun install
       - name: Build frontend
-        run: npm run build
+        run: bun run build
       - name: Upload frontend build artifact
         uses: actions/upload-artifact@v4
         with:
