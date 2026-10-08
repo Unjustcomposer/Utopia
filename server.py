@@ -221,8 +221,8 @@ async def get_run_by_id(
 
 
 class CompareRequest(BaseModel):
-    agents: int = 200
-    firms: int = 5
+    agents: int = 1000
+    firms: int = 10
     goods: int = 4
     ticks: int = 120
     use_us_calibration: bool = False
@@ -311,8 +311,8 @@ def sanitize_for_json(obj):
 
 
 class RunRequest(BaseModel):
-    agents: int = Field(default=200, gt=0, le=10000)
-    firms: int = Field(default=5, gt=0, le=1000)
+    agents: int = Field(default=1000, gt=0, le=100000)
+    firms: int = Field(default=10, gt=0, le=5000)
     goods: int = Field(default=4, gt=0, le=100)
     ticks: int = Field(default=120, gt=0, le=5000)
     use_us_calibration: bool = False
@@ -386,8 +386,8 @@ async def handle_api_run(
 
 
 class ExperimentRequest(BaseModel):
-    agents: int = 200
-    firms: int = 5
+    agents: int = 1000
+    firms: int = 10
     goods: int = 4
     ticks: int = 120
     seed: int = 42

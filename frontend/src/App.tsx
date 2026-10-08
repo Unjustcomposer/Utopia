@@ -28,7 +28,7 @@ export default function App() {
   
   const [scenario, setScenario] = useState('baseline')
   const [calibrationProfile, setCalibrationProfile] = useState('')
-  const [agents, setAgents] = useState(200)
+  const [agents, setAgents] = useState(1000)
   const [ticks, setTicks] = useState(120)
   
   const [loading, setLoading] = useState(false)

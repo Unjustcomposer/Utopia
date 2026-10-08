@@ -219,12 +219,11 @@ def init_sim_state(
     quality = jax.random.uniform(subkey, (config.num_firms,), minval=0.8, maxval=1.2)
 
     production_capacity = jnp.full(config.num_firms, config.production_capacity_max)
-    # Count pre-assigned employees per firm from the initial employment setup
-    num_employees = jnp.zeros(config.num_firms, dtype=jnp.float32)
-    for f_idx in range(config.num_firms):
-        num_employees = num_employees.at[f_idx].set(
-            jnp.sum((employer_id == f_idx).astype(jnp.float32))
-        )
+    # Count pre-assigned employees per firm (vectorized for GPU performance at 100K agents)
+    one_hot_employers = jax.nn.one_hot(
+        jnp.where(employer_id >= 0, employer_id, 0), config.num_firms
+    ) * employed[:, None]
+    num_employees = jnp.sum(one_hot_employers, axis=0)
     wage_offer = jax.random.uniform(
         subkey,
         (config.num_firms,),

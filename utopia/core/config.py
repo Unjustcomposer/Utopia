@@ -41,7 +41,7 @@ class SimulationConfig:
     # calibration parameters will be handled outside the core JAX config or passed explicitly.
 
     # ── Population (Calibrated to US Census / BLS data) ──────────────────
-    num_agents: int = struct.field(pytree_node=False, default=200)
+    num_agents: int = struct.field(pytree_node=False, default=1000)
     base_wage_min: float = 15.0   # US federal minimum ~$7.25/hr → ~$15/tick normalized
     base_wage_max: float = 150.0  # Top decile earners ~10x minimum (BLS wage data)
     initial_budget_min: float = 50.0    # Bottom quintile: near-zero liquid savings
