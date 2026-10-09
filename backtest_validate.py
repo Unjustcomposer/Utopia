@@ -719,9 +719,9 @@ def main():
                 "events": {
                     k: {
                         metric: {
-                            "pass": v["pass"],
-                            "expected": v["expected"],
-                            "detail": v["detail"],
+                            "pass": bool(v["pass"]),
+                            "expected": str(v["expected"]),
+                            "detail": str(v["detail"]),
                         }
                         for metric, v in vals.items()
                     }
